@@ -20,7 +20,6 @@
 
 #define CEC_DRIVER_VERSION	"Ver 2018/08/10\n"
 
-
 #define CEC_FRAME_DELAY		msecs_to_jiffies(400)
 #define CEC_DEV_NAME		"cec"
 
@@ -45,7 +44,7 @@
 #define CEC_FUNC_CFG_ALL			0x2f
 #define CEC_FUNC_CFG_NONE			0x0
 
-#define AO_BASE				0xc8100000
+/*#define AO_BASE				0xc8100000*/
 
 #define AO_GPIO_I			((0x0A << 2))
 #define PREG_PAD_GPIO3_I	(0x01b << 2)
