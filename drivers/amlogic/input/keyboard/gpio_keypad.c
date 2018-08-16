@@ -74,7 +74,7 @@ static struct pin_desc *get_current_key(struct gpio_keypad *keypad)
 	}
 	return NULL;
 }
-static void report_key_code(struct gpio_keypad *keypad, int key_status)
+static void report_key_code(struct gpio_keypad *keypad, int gpio_val)
 {
 	struct pin_desc *key;
 
@@ -82,17 +82,17 @@ static void report_key_code(struct gpio_keypad *keypad, int key_status)
 		keypad->count++;
 	else {
 		key = keypad->current_key;
-		key->current_status = gpiod_get_value(key->desc);
+		key->current_status = gpio_val;
 		input_report_key(keypad->input_dev,
-			key->code, key_status);
+			key->code, key->current_status);
 		input_sync(keypad->input_dev);
-		if (key_status)
+		if (key->current_status)
 			dev_info(&(keypad->input_dev->dev),
-				"key %d down.\n",
+				"key %d up.\n",
 				key->code);
 		else
 			dev_info(&(keypad->input_dev->dev),
-				"key %d up.\n",
+				"key %d down.\n",
 				key->code);
 		keypad->count = 0;
 	}
@@ -102,6 +102,7 @@ static void polling_timer_handler(unsigned long data)
 	struct gpio_keypad *keypad;
 	struct pin_desc *key;
 	int i;
+	int gpio_val;
 
 	keypad = (struct gpio_keypad *)data;
 	if (keypad->use_irq) {//irq mode
@@ -109,8 +110,9 @@ static void polling_timer_handler(unsigned long data)
 		if (!(keypad->current_key))
 			return;
 		key = keypad->current_key;
-		if (key->current_status != gpiod_get_value(key->desc))
-			report_key_code(keypad, key->current_status);
+		gpio_val = gpiod_get_value(key->desc);
+		if (key->current_status != gpio_val)
+			report_key_code(keypad, gpio_val);
 		else
 			keypad->count = 0;
 		if (key->current_status == 0)
@@ -118,12 +120,11 @@ static void polling_timer_handler(unsigned long data)
 				jiffies+msecs_to_jiffies(keypad->scan_period));
 	} else {//polling mode
 		for (i = 0; i < keypad->key_size; i++) {
-			if (keypad->key[i].current_status !=
-					gpiod_get_value(keypad->key[i].desc)) {
+			gpio_val = gpiod_get_value(keypad->key[i].desc);
+			if (keypad->key[i].current_status != gpio_val) {
 				keypad->index = i;
 				keypad->current_key = &(keypad->key[i]);
-				report_key_code(keypad,
-					keypad->key[i].current_status);
+				report_key_code(keypad, gpio_val);
 			} else if (keypad->index ==  i)
 				keypad->count = 0;
 		mod_timer(&(keypad->polling_timer),
@@ -200,13 +201,11 @@ static int meson_gpio_kp_probe(struct platform_device *pdev)
 		return -EINVAL;
 	set_bit(EV_KEY,  input_dev->evbit);
 	set_bit(EV_REP,  input_dev->evbit);
-
 	for (i = 0; i < keypad->key_size; i++) {
 		set_bit(keypad->key[i].code,  input_dev->keybit);
 		dev_info(&pdev->dev, "%s key(%d) registed.\n",
-			keypad->key[i].name, keypad->key[i].code);
+			 keypad->key[i].name, keypad->key[i].code);
 	}
-
 	input_dev->name = "gpio_keypad";
 	input_dev->phys = "gpio_keypad/input0";
 	input_dev->dev.parent = &pdev->dev;
