@@ -83,17 +83,26 @@ static void report_key_code(struct gpio_keypad *keypad, int gpio_val)
 	else {
 		key = keypad->current_key;
 		key->current_status = gpio_val;
-		input_report_key(keypad->input_dev,
-			key->code, key->current_status);
-		input_sync(keypad->input_dev);
-		if (key->current_status)
+		if (key->current_status) {
+			input_report_key(keypad->input_dev,
+				key->code, 0);
+			if (keypad->use_irq)
+				enable_irq(key->irq_num);
 			dev_info(&(keypad->input_dev->dev),
 				"key %d up.\n",
 				key->code);
-		else
+		} else {
+			input_report_key(keypad->input_dev,
+				key->code, 1);
+			if (keypad->use_irq)
+				disable_irq_nosync(key->irq_num);
+
 			dev_info(&(keypad->input_dev->dev),
 				"key %d down.\n",
 				key->code);
+		}
+		input_sync(keypad->input_dev);
+
 		keypad->count = 0;
 	}
 }
@@ -200,7 +209,6 @@ static int meson_gpio_kp_probe(struct platform_device *pdev)
 	if (!input_dev)
 		return -EINVAL;
 	set_bit(EV_KEY,  input_dev->evbit);
-	set_bit(EV_REP,  input_dev->evbit);
 	for (i = 0; i < keypad->key_size; i++) {
 		set_bit(keypad->key[i].code,  input_dev->keybit);
 		dev_info(&pdev->dev, "%s key(%d) registed.\n",
@@ -270,14 +278,10 @@ static const struct of_device_id key_dt_match[] = {
 static int meson_gpio_kp_suspend(struct platform_device *dev,
 	pm_message_t state)
 {
-	int i;
 	struct gpio_keypad *pdata;
 
 	pdata = (struct gpio_keypad *)platform_get_drvdata(dev);
-	if (pdata->use_irq) {
-		for (i = 0; i < pdata->key_size; i++)
-		disable_irq_nosync(pdata->key[i].irq_num);
-	} else
+	if (!pdata->use_irq)
 		del_timer(&(pdata->polling_timer));
 	return 0;
 }
@@ -288,10 +292,7 @@ static int meson_gpio_kp_resume(struct platform_device *dev)
 	struct gpio_keypad *pdata;
 
 	pdata = (struct gpio_keypad *)platform_get_drvdata(dev);
-	if (pdata->use_irq) {
-		for (i = 0; i < pdata->key_size; i++)
-			enable_irq(pdata->key[i].irq_num);
-	} else
+	if (!pdata->use_irq)
 		mod_timer(&(pdata->polling_timer),
 			jiffies+msecs_to_jiffies(5));
 	if (get_resume_method() == POWER_KEY_WAKEUP) {
