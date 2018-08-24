@@ -933,6 +933,7 @@
 		 * 5:TXL 6:TXLX 7:AXG 8:GXLX 9:TXHD
 		 */
 		ic_type = <6>;
+		basic_audio = <0>;
 		//gpio_i2c_en = <0>;
 		//repeater_tx = <0x1>;
 		//#address-cells = <2>;

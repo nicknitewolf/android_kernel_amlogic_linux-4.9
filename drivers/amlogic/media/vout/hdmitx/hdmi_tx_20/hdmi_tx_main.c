@@ -3627,6 +3627,16 @@ static int amhdmitx_get_dt_info(struct platform_device *pdev)
 			pr_info(SYS "hdmitx_device.chip_type : %d\n",
 				hdmitx_device.chip_type);
 
+		/* Get basic audio information */
+		hdmitx_device.basic_audio = 1; /* default value should be 1 */
+		ret = of_property_read_u32(pdev->dev.of_node, "basic_audio",
+			&(hdmitx_device.basic_audio));
+		if (ret)
+			pr_info(SYS "not find basic_audio\n");
+		else
+			pr_info(SYS "hdmitx_device.basic_audio: %d\n",
+				hdmitx_device.basic_audio);
+
 		/* Get vendor information */
 		ret = of_property_read_u32(pdev->dev.of_node,
 				"vend-data", &val);
