@@ -814,6 +814,29 @@ u8 *wifi_get_mac(void)
 }
 EXPORT_SYMBOL(wifi_get_mac);
 
+char *country_code_ptr;
+char wifi_country_code[20] = "null";
+
+static int __init country_code_set(char *str)
+{
+	if (str != NULL) {
+		sprintf(wifi_country_code, "%s", str);
+		country_code_ptr = wifi_country_code;
+	} else {
+		country_code_ptr = NULL;
+	}
+
+	return 0;
+}
+
+__setup("androidboot.wificountrycode=", country_code_set);
+
+char *wifi_get_country_code(void)
+{
+	return country_code_ptr;
+}
+EXPORT_SYMBOL(wifi_get_country_code);
+
 void extern_wifi_set_enable(int is_on)
 {
 
