@@ -14600,3 +14600,7 @@ AMLOGIC SYSTEM AS ROOT
 M:	Xindong Xu  <xindong.xu@amlogic.com>
 F:	arch/arm64/boot/dts/amlogic/firmware_avb_system.dtsi
 F:      arch/arm64/boot/dts/amlogic/firmware_system.dtsi
+
+AMLOGIC DTBO PARTITION
+M:      Xindong Xu  <xindong.xu@amlogic.com>
+F:	arch/arm64/boot/dts/amlogic/common_overlay_dt.dts
