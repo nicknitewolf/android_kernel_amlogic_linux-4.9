@@ -100,6 +100,8 @@ enum _cec_log_dev_addr_e {
 #define CEC_IOC_SET_AUTO_DEVICE_OFF     _IOW(CEC_IOC_MAGIC, 0x0F, uint32_t)
 #define CEC_IOC_GET_BOOT_ADDR           _IOW(CEC_IOC_MAGIC, 0x10, uint32_t)
 #define CEC_IOC_GET_BOOT_REASON         _IOW(CEC_IOC_MAGIC, 0x11, uint32_t)
+#define CEC_IOC_CLR_LOGICAL_ADDR_PLUS   _IOW(CEC_IOC_MAGIC, 0x12, uint32_t)
+/*#define CEC_IOC_ADD_LOGICAL_ADDR_PLUS   _IOW(CEC_IOC_MAGIC, 0x13, uint32_t)*/
 
 #define CEC_FAIL_NONE                   0
 #define CEC_FAIL_NACK                   1
@@ -314,6 +316,7 @@ struct cec_global_info_t {
 	unsigned int cec_version;
 	unsigned char power_status;
 	unsigned char log_addr;
+	unsigned int addr_enable;
 	unsigned char menu_status;
 	unsigned char osd_name[16];
 	struct input_dev *remote_cec_dev;	/* cec input device */

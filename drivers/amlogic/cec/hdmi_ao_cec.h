@@ -19,7 +19,7 @@
 #define __AO_CEC_H__
 
 
-#define CEC_DRIVER_VERSION	"Ver 2018/08/30\n"
+#define CEC_DRIVER_VERSION	"Ver 2018/09/06\n"
 
 #define CEC_FRAME_DELAY		msecs_to_jiffies(400)
 #define CEC_DEV_NAME		"cec"
@@ -437,7 +437,7 @@ int __attribute__((weak))hdmirx_get_connect_info(void)
 #ifdef CONFIG_AMLOGIC_AO_CEC
 unsigned int aocec_rd_reg(unsigned long addr);
 void aocec_wr_reg(unsigned long addr, unsigned long data);
-void cecrx_irq_handle(void);
+void cecb_irq_handle(void);
 void cec_logicaddr_set(int l_add);
 void cec_arbit_bit_time_set(unsigned int bit_set,
 				unsigned int time_set, unsigned int flag);
@@ -447,5 +447,7 @@ extern void dump_reg(void);
 #endif
 extern void cec_dump_info(void);
 extern void cec_hw_reset(void);
-
+extern void cec_restore_logical_addr(unsigned int addr_en);
+extern void cec_logicaddr_add(unsigned int cec_sel, unsigned int l_add);
+extern void cec_clear_all_logical_addr(unsigned int cec_sel);
 #endif	/* __AO_CEC_H__ */
