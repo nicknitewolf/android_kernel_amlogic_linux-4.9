@@ -46,9 +46,6 @@
 #include <linux/amlogic/media/frame_provider/tvin/tvin.h>
 /*#include <linux/amlogic/amports/vframe.h>*/
 #include <linux/of_gpio.h>
-#ifdef CONFIG_AMLOGIC_LEGACY_EARLY_SUSPEND
-#include <linux/amlogic/pm.h>
-#endif
 
 /* Local include */
 #include "hdmi_rx_drv.h"
@@ -136,10 +133,6 @@ int vdin_drop_frame_cnt = 1;
  * other value: keep previous logic
  */
 int suspend_pddq_sel = 1;
-
-#ifdef CONFIG_AMLOGIC_LEGACY_EARLY_SUSPEND
-static bool early_suspend_flag;
-#endif
 
 struct reg_map reg_maps[MAP_ADDR_MODULE_NUM];
 
@@ -1507,67 +1500,17 @@ static int hdmirx_switch_pinmux(struct device *dev)
 	}
 	return ret;
 }
-
-static void rx_phy_suspend(void)
-{
-	/* set HPD low when cec off. */
-	if (!hdmi_cec_en)
-		rx_set_port_hpd(ALL_PORTS, 0);
-	if (suspend_pddq_sel == 0)
-		rx_pr("don't set phy pddq down\n");
-	else {
-		/* there's no SDA low issue on MTK box when CEC off */
-		if (hdmi_cec_en != 0) {
-			if (suspend_pddq_sel == 2) {
-				/* set rxsense pulse */
-				hdmirx_phy_pddq(1);
-				mdelay(10);
-				hdmirx_phy_pddq(0);
-				mdelay(10);
-			}
-		}
-		/* phy powerdown */
-		hdmirx_phy_pddq(1);
-	}
-}
-
-static void rx_phy_resume(void)
-{
-	if (hdmi_cec_en != 0) {
-		if (suspend_pddq_sel == 1) {
-			/* set rxsense pulse, if delay time between
-			 * rxsense pulse and phy_int shottern than
-			 * 50ms, SDA may be pulled low 800ms on MTK box
-			 */
-			hdmirx_phy_pddq(0);
-			msleep(20);
-			hdmirx_phy_pddq(1);
-			msleep(50);
-		}
-	}
-	hdmirx_phy_init();
-	pre_port = 0xff;
-	rx.boot_flag = true;
-}
-
-#ifdef CONFIG_AMLOGIC_LEGACY_EARLY_SUSPEND
+#ifdef CONFIG_HAS_EARLYSUSPEND
 static void hdmirx_early_suspend(struct early_suspend *h)
 {
-	if (early_suspend_flag)
-		return;
-
-	early_suspend_flag = true;
-	rx_phy_suspend();
 	rx_pr("hdmirx_early_suspend ok\n");
 }
 
 static void hdmirx_late_resume(struct early_suspend *h)
 {
-	if (!early_suspend_flag)
-		return;
-
-	early_suspend_flag = false;
-	rx_phy_resume();
+	/* after early suspend & late resuem, also need to */
+	/* do hpd reset when open port for hdcp compliance */
+	pre_port = 0xff;
 	rx_pr("hdmirx_late_resume ok\n");
 };
 
@@ -1855,7 +1798,7 @@ static int hdmirx_probe(struct platform_device *pdev)
 
 	hdmirx_hw_probe();
 	hdmirx_switch_pinmux(&(pdev->dev));
-#ifdef CONFIG_AMLOGIC_LEGACY_EARLY_SUSPEND
+#ifdef CONFIG_HAS_EARLYSUSPEND
 	register_early_suspend(&hdmirx_early_suspend_handler);
 #endif
 	mutex_init(&hdevp->rx_lock);
@@ -1918,7 +1861,7 @@ static int hdmirx_remove(struct platform_device *pdev)
 	cancel_delayed_work_sync(&esm_dwork);
 	destroy_workqueue(esm_wq);
 
-#ifdef CONFIG_AMLOGIC_LEGACY_EARLY_SUSPEND
+#ifdef CONFIG_HAS_EARLYSUSPEND
 	unregister_early_suspend(&hdmirx_early_suspend_handler);
 #endif
 	mutex_destroy(&hdevp->rx_lock);
@@ -1969,15 +1912,31 @@ static int hdmirx_suspend(struct platform_device *pdev, pm_message_t state)
 	struct hdmirx_dev_s *hdevp;
 
 	hdevp = platform_get_drvdata(pdev);
+	rx_pr("[hdmirx]: hdmirx_suspend\n");
 	del_timer_sync(&hdevp->timer);
-#ifdef CONFIG_AMLOGIC_LEGACY_EARLY_SUSPEND
-	/* if early suspend not called, need to pw down phy here */
-	if (!early_suspend_flag)
-#endif
-		rx_phy_suspend();
+	/* set HPD low when cec off. */
+	if (!hdmi_cec_en)
+		rx_force_hpd_cfg(0);
+
+	if (suspend_pddq_sel == 0)
+		rx_pr("don't set phy pddq down\n");
+	else {
+		/* there's no SDA low issue on MTK box when CEC off */
+		if (hdmi_cec_en != 0) {
+			if (suspend_pddq_sel == 2) {
+				/* set rxsense pulse */
+				mdelay(10);
+				hdmirx_phy_pddq(1);
+				mdelay(10);
+				hdmirx_phy_pddq(0);
+			}
+		}
+		/* phy powerdown */
+		hdmirx_phy_pddq(1);
+	}
 	if (hdcp22_on)
 		hdcp22_suspend();
-	rx_pr("hdmirx: suspend success\n");
+	rx_pr("[hdmirx]: suspend success\n");
 	return 0;
 }
 
@@ -1986,14 +1945,25 @@ static int hdmirx_resume(struct platform_device *pdev)
 	struct hdmirx_dev_s *hdevp;
 
 	hdevp = platform_get_drvdata(pdev);
+	if (hdmi_cec_en != 0) {
+		if (suspend_pddq_sel == 1) {
+			/* set rxsense pulse, if delay time between
+			 * rxsense pulse and phy_int shottern than
+			 * 50ms, SDA may be pulled low 800ms on MTK box
+			 */
+			hdmirx_phy_pddq(0);
+			mdelay(10);
+			hdmirx_phy_pddq(1);
+			mdelay(50);
+		}
+	}
+	hdmirx_phy_init();
 	add_timer(&hdevp->timer);
-#ifdef CONFIG_AMLOGIC_LEGACY_EARLY_SUSPEND
-	/* if early suspend not called, need to pw up phy here */
-	if (!early_suspend_flag)
-#endif
-		rx_phy_resume();
 	if (hdcp22_on)
 		hdcp22_resume();
+	rx_pr("hdmirx: resume\n");
+	pre_port = 0xff;
+	rx.boot_flag = true;
 	return 0;
 }
 #endif
