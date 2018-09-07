@@ -339,6 +339,7 @@ static int aml_get_spdif_audio_type(
 	int i;
 	int total_num = sizeof(type_texts)/sizeof(struct spdif_audio_info);
 	int pc = aml_audin_read(AUDIN_SPDIF_NPCM_PCPD)>>16;
+	char value = (char)(aml_audin_read(AUDIN_SPDIF_MISC) & 0xFF);
 
 	pc = pc&0xfff;
 	for (i = 0; i < total_num; i++) {
@@ -396,6 +397,9 @@ static int aml_get_spdif_audio_type(
 					index - 3);
 			}
 		}
+		/*if no signal from spdifin, return pause flag*/
+		if (value == 0)
+			audio_type = 6;
 	}
 	ucontrol->value.enumerated.item[0] = audio_type;
 
