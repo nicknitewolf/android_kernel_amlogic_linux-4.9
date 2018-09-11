@@ -169,8 +169,6 @@ static bool ee_cec;
 static bool pin_status;
 static unsigned int cec_msg_dbg_en;
 
-static void cec_hw_reset(void);
-
 #define CEC_ERR(format, args...)				\
 	{if (cec_dev->dbg_dev)					\
 		dev_err(cec_dev->dbg_dev, format, ##args);	\
@@ -741,6 +739,8 @@ void cec_logicaddr_set(int l_add)
 			hdmirx_cec_write(DWC_CEC_ADDR_L, 1 << l_add);
 		else
 			hdmirx_cec_write(DWC_CEC_ADDR_H, 1 << (l_add - 8)|0x80);
+
+		CEC_INFO("set cecb logical addr:0x%x\n", l_add);
 		return;
 	}
 	aocec_wr_reg(CEC_LOGICAL_ADDR0, 0);
@@ -749,11 +749,11 @@ void cec_logicaddr_set(int l_add)
 	udelay(100);
 	aocec_wr_reg(CEC_LOGICAL_ADDR0, (0x1 << 4) | (l_add & 0xf));
 	if (cec_msg_dbg_en)
-		CEC_INFO("set logical addr:0x%x\n",
+		CEC_INFO("set cec alogical addr:0x%x\n",
 			aocec_rd_reg(CEC_LOGICAL_ADDR0));
 }
 
-static void cec_hw_reset(void)
+void cec_hw_reset(void)
 {
 	if (ee_cec) {
 		cecrx_hw_init();
@@ -828,6 +828,8 @@ static bool need_nack_repeat_msg(const unsigned char *msg, int len, int t)
 
 static void cec_clear_logical_addr(void)
 {
+	CEC_INFO("clear logical addr\n");
+
 	if (ee_cec) {
 		hdmirx_cec_write(DWC_CEC_ADDR_L, 0);
 		hdmirx_cec_write(DWC_CEC_ADDR_H, 0x80);
@@ -1753,26 +1755,6 @@ static void check_wake_up(void)
 		cec_request_active_source();
 }
 
-static void cec_dump_info(void)
-{
-	CEC_ERR("dev_type:%d\n", (unsigned int)cec_dev->dev_type);
-	CEC_ERR("wk_logic_addr:0x%x\n", cec_dev->wakup_data.wk_logic_addr);
-	CEC_ERR("wk_phy_addr:0x%x\n", cec_dev->wakup_data.wk_phy_addr);
-	CEC_ERR("wk_port_id:0x%x\n", cec_dev->wakup_data.wk_port_id);
-	CEC_ERR("wakeup_reason:0x%x\n", cec_dev->wakeup_reason);
-	CEC_ERR("phy_addr:0x%x\n", cec_dev->phy_addr);
-	CEC_ERR("cec_version:0x%x\n", cec_dev->cec_info.cec_version);
-	CEC_ERR("hal_ctl:0x%x\n", cec_dev->cec_info.hal_ctl);
-	CEC_ERR("menu_lang:0x%x\n", cec_dev->cec_info.menu_lang);
-	CEC_ERR("menu_status:0x%x\n", cec_dev->cec_info.menu_status);
-	CEC_ERR("open_count:%d\n", cec_dev->cec_info.open_count.counter);
-	CEC_ERR("vendor_id:0x%x\n", cec_dev->v_data.vendor_id);
-	CEC_ERR("port_num:0x%x\n", cec_dev->port_num);
-	CEC_ERR("hal_flag:0x%x\n", cec_dev->hal_flag);
-	CEC_ERR("hpd_state:0x%x\n", cec_dev->tx_dev->hpd_state);
-	CEC_ERR("cec_config:0x%x\n", cec_config(0, 0));
-	dump_reg();
-}
 
 /******************** cec class interface *************************/
 static ssize_t device_type_show(struct class *cla,
@@ -2182,6 +2164,8 @@ static ssize_t dbg_store(struct class *cla, struct class_attribute *attr,
 
 		writel(val, cec_dev->cec_reg + addr);
 		CEC_ERR("wao addr:0x%x, val:0x%x", val, addr);
+	} else if (token && strncmp(token, "preinit", 7) == 0) {
+		cec_pre_init();
 	} else {
 		if (token)
 			CEC_ERR("no cmd:%s\n", token);
@@ -2352,6 +2336,38 @@ static void init_cec_port_info(struct hdmi_port_info *port,
 			break;
 	}
 }
+
+
+void cec_dump_info(void)
+{
+	struct hdmi_port_info *port;
+
+	CEC_ERR("dev_type:%d\n", (unsigned int)cec_dev->dev_type);
+	CEC_ERR("wk_logic_addr:0x%x\n", cec_dev->wakup_data.wk_logic_addr);
+	CEC_ERR("wk_phy_addr:0x%x\n", cec_dev->wakup_data.wk_phy_addr);
+	CEC_ERR("wk_port_id:0x%x\n", cec_dev->wakup_data.wk_port_id);
+	CEC_ERR("wakeup_reason:0x%x\n", cec_dev->wakeup_reason);
+	CEC_ERR("phy_addr:0x%x\n", cec_dev->phy_addr);
+	CEC_ERR("cec_version:0x%x\n", cec_dev->cec_info.cec_version);
+	CEC_ERR("hal_ctl:0x%x\n", cec_dev->cec_info.hal_ctl);
+	CEC_ERR("menu_lang:0x%x\n", cec_dev->cec_info.menu_lang);
+	CEC_ERR("menu_status:0x%x\n", cec_dev->cec_info.menu_status);
+	CEC_ERR("open_count:%d\n", cec_dev->cec_info.open_count.counter);
+	CEC_ERR("vendor_id:0x%x\n", cec_dev->v_data.vendor_id);
+	CEC_ERR("port_num:0x%x\n", cec_dev->port_num);
+	CEC_ERR("output:0x%x\n", cec_dev->output);
+	CEC_ERR("arc_port:0x%x\n", cec_dev->arc_port);
+	CEC_ERR("hal_flag:0x%x\n", cec_dev->hal_flag);
+	CEC_ERR("hpd_state:0x%x\n", cec_dev->tx_dev->hpd_state);
+	CEC_ERR("cec_config:0x%x\n", cec_config(0, 0));
+	CEC_ERR("log_addr:0x%x\n", cec_dev->cec_info.log_addr);
+	port = kcalloc(cec_dev->port_num, sizeof(*port), GFP_KERNEL);
+	if (port) {
+		init_cec_port_info(port, cec_dev);
+		kfree(port);
+	}
+}
+
 
 static long hdmitx_cec_ioctl(struct file *f,
 			     unsigned int cmd, unsigned long arg)
