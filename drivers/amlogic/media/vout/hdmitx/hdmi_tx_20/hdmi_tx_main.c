@@ -554,7 +554,7 @@ static ssize_t show_attr(struct device *dev,
 ssize_t store_attr(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t count)
 {
-	memcpy(hdmitx_device.fmt_attr, buf, sizeof(hdmitx_device.fmt_attr));
+	strncpy(hdmitx_device.fmt_attr, buf, sizeof(hdmitx_device.fmt_attr));
 	return count;
 }
 /*aud_mode attr*/
