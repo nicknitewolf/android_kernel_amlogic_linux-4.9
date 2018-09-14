@@ -252,6 +252,8 @@ struct hdmitx_dev {
 	struct timer_list hdcp_timer;
 	int hdcp_try_times;
 	int chip_type;
+	/* hdmitx cts support basic audio 0: N 1: Y */
+	int basic_audio;
 	int hdmi_init;
 	int hpdmode;
 	/* -1, no hdcp; 0, NULL; 1, 1.4; 2, 2.2 */

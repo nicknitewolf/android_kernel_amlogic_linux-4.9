@@ -587,6 +587,9 @@ void HDMITX_Meson_Init(struct hdmitx_dev *hdev)
 	hdmi_hwp_init(hdev);
 	hdmi_hwi_init(hdev);
 	hdev->HWOp.CntlMisc(hdev, MISC_AVMUTE_OP, CLR_AVMUTE);
+	if (!(hdev->basic_audio))
+		hdev->HWOp.CntlConfig(hdev,
+			CONF_AUDIO_MUTE_OP, AUDIO_MUTE);
 	rptx_ksvs = &rptx_ksv_prbuf[0];
 }
 
@@ -2337,6 +2340,9 @@ static int hdmitx_set_audmode(struct hdmitx_dev *hdev,
 		return 0;
 	if (!audio_param)
 		return 0;
+	if (!(hdev->basic_audio))
+		return 0;
+
 	pr_info(HW "set audio\n");
 	audio_mute_op(hdev->tx_aud_cfg);
 	/* PCM & 8 ch */
@@ -2350,7 +2356,8 @@ static int hdmitx_set_audmode(struct hdmitx_dev *hdev,
 	if (hdev->aud_output_ch)
 		hdev->tx_aud_src = 1;
 
-	pr_info(HW "hdmitx tx_aud_src = %d\n", hdev->tx_aud_src);
+	pr_info(HW "hdmitx tx_aud_src = %d aud_output_ch = %d\n",
+		hdev->tx_aud_src, hdev->aud_output_ch);
 
 	/* set_hdmi_audio_source(tx_aud_src ? 1 : 2); */
 	set_hdmi_audio_source(2);
