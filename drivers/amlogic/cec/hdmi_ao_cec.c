@@ -1709,7 +1709,7 @@ static void cec_task(struct work_struct *work)
 	unsigned int cec_cfg;
 
 	cec_cfg = cec_config(0, 0);
-	if (cec_cfg & (1 << HDMI_OPTION_ENABLE_CEC)) {
+	if (cec_cfg & CEC_FUNC_CFG_CEC_ON) {
 		/*cec module on*/
 		if (cec_dev && (!wake_ok || cec_service_suspended()))
 			cec_rx_process();
@@ -2260,7 +2260,7 @@ static ssize_t hdmitx_cec_write(struct file *f, const char __user *buf,
 		return -EINVAL;
 
 	cec_cfg = cec_config(0, 0);
-	if (cec_cfg & (1 << HDMI_OPTION_ENABLE_CEC)) {
+	if (cec_cfg & CEC_FUNC_CFG_CEC_ON) {
 		/*cec module on*/
 		ret = cec_ll_tx(tempbuf, size);
 	} else {
@@ -2488,28 +2488,37 @@ static long hdmitx_cec_ioctl(struct file *f,
 
 	case CEC_IOC_SET_OPTION_WAKEUP:
 		tmp = cec_config(0, 0);
-		tmp &= ~(1 << AUTO_POWER_ON_MASK);
-		tmp |=  (arg << AUTO_POWER_ON_MASK);
+		if (arg)
+			tmp |= CEC_FUNC_CFG_AUTO_POWER_ON;
+		else
+			tmp &= ~(CEC_FUNC_CFG_AUTO_POWER_ON);
 		cec_config(tmp, 1);
 		break;
 
 	case CEC_IOC_SET_AUTO_DEVICE_OFF:
 		tmp = cec_config(0, 0);
-		tmp &= ~(1 << ONE_TOUCH_STANDBY_MASK);
-		tmp |=  (arg << ONE_TOUCH_STANDBY_MASK);
+		if (arg)
+			tmp |= CEC_FUNC_CFG_AUTO_STANDBY;
+		else
+			tmp &= ~(CEC_FUNC_CFG_AUTO_STANDBY);
 		cec_config(tmp, 1);
 		break;
 
 	case CEC_IOC_SET_OPTION_ENALBE_CEC:
+		a = cec_config(0, 0);
+		if (arg)
+			a |= CEC_FUNC_CFG_CEC_ON;
+		else
+			a &= ~(CEC_FUNC_CFG_CEC_ON);
+		cec_config(a, 1);
+
 		tmp = (1 << HDMI_OPTION_ENABLE_CEC);
 		if (arg) {
 			cec_dev->hal_flag |= tmp;
-			cec_config(CEC_FUNC_CFG_ALL, 1);
 			cec_pre_init();
 		} else {
 			cec_dev->hal_flag &= ~(tmp);
 			CEC_INFO("disable CEC\n");
-			cec_config(CEC_FUNC_CFG_NONE, 1);
 			/*cec_keep_reset();*/
 			cec_clear_logical_addr();
 		}
@@ -2519,7 +2528,7 @@ static long hdmitx_cec_ioctl(struct file *f,
 		tmp = (1 << HDMI_OPTION_SYSTEM_CEC_CONTROL);
 		if (arg) {
 			cec_dev->hal_flag |= tmp;
-			cec_config(CEC_FUNC_CFG_ALL, 1);
+			/*cec_config(CEC_FUNC_CFG_ALL, 1);*/
 		} else
 			cec_dev->hal_flag &= ~(tmp);
 		cec_dev->hal_flag |= (1 << HDMI_OPTION_SERVICE_FLAG);
@@ -3007,6 +3016,8 @@ static int aml_cec_probe(struct platform_device *pdev)
 	start_bit_check.function = cec_line_check;
 	/* for init */
 	cec_pre_init();
+	/* default enable all function*/
+	cec_config(CEC_FUNC_CFG_ALL, 1);
 	queue_delayed_work(cec_dev->cec_thread, &cec_dev->cec_work, 0);
 	scpi_get_wakeup_reason(&cec_dev->wakeup_reason);
 	CEC_ERR("wakeup_reason:0x%x\n", cec_dev->wakeup_reason);
