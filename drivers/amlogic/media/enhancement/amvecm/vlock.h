@@ -17,13 +17,13 @@
 
 #ifndef __AM_VLOCK_H
 #define __AM_VLOCK_H
-
+#include <linux/notifier.h>
 #include <linux/device.h>
 #include <linux/of.h>
 #include <linux/amlogic/media/vfm/vframe.h>
 #include "linux/amlogic/media/amvecm/ve.h"
 
-#define VLOCK_VER "Ref.2018/09/04a"
+#define VLOCK_VER "Ref.2018/10/16a"
 
 #define VLOCK_REG_NUM	33
 
@@ -111,5 +111,7 @@ extern int amvecm_hiu_reg_write(unsigned int reg, unsigned int val);
 extern void vdin_vlock_input_sel(unsigned int type,
 	enum vframe_source_type_e source_type);
 extern void vlock_param_config(struct device_node *node);
+extern int vlock_notify_callback(struct notifier_block *block,
+	unsigned long cmd, void *para);
 #endif
 
