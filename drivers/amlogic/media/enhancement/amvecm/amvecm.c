@@ -532,10 +532,6 @@ static ssize_t amvecm_vlock_show(struct class *cla,
 	len += sprintf(buf+len,
 		"echo vlock_delta_limit val(D) > /sys/class/amvecm/vlock\n");
 	len += sprintf(buf+len,
-		"echo vlock_pll_m_limit val(D) > /sys/class/amvecm/vlock\n");
-	len += sprintf(buf+len,
-		"echo vlock_delta_cnt_limit val(D) > /sys/class/amvecm/vlock\n");
-	len += sprintf(buf+len,
 		"echo vlock_debug val(0x111) > /sys/class/amvecm/vlock\n");
 	len += sprintf(buf+len,
 		"echo vlock_dynamic_adjust val(0/1) > /sys/class/amvecm/vlock\n");
@@ -605,16 +601,6 @@ static ssize_t amvecm_vlock_store(struct class *cla,
 			return -EINVAL;
 		temp_val = val;
 		sel = VLOCK_DELTA_LIMIT;
-	} else if (!strncmp(parm[0], "vlock_pll_m_limit", 17)) {
-		if (kstrtol(parm[1], 10, &val) < 0)
-			return -EINVAL;
-		temp_val = val;
-		sel = VLOCK_PLL_M_LIMIT;
-	} else if (!strncmp(parm[0], "vlock_delta_cnt_limit", 21)) {
-		if (kstrtol(parm[1], 10, &val) < 0)
-			return -EINVAL;
-		temp_val = val;
-		sel = VLOCK_DELTA_CNT_LIMIT;
 	} else if (!strncmp(parm[0], "vlock_debug", 11)) {
 		if (kstrtol(parm[1], 16, &val) < 0)
 			return -EINVAL;
@@ -4698,8 +4684,6 @@ static void aml_vecm_dt_parse(struct platform_device *pdev)
 			pr_info("Can't find  tx_op_color_primary.\n");
 		else
 			tx_op_color_primary = val;
-		/*vlock param config*/
-		vlock_param_config(node);
 	}
 	/* init module status */
 	amvecm_wb_init(wb_en);

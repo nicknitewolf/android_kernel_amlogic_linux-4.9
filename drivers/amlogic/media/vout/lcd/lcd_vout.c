@@ -158,9 +158,6 @@ static struct lcd_power_ctrl_s lcd_power_config = {
 	},
 };
 
-/* index 0: valid flag */
-static unsigned int vlock_param[LCD_VLOCK_PARAM_NUM] = {0};
-
 static struct lcd_config_s lcd_config_dft = {
 	.lcd_propname = lcd_propname,
 	.lcd_basic = {
@@ -192,7 +189,6 @@ static struct lcd_config_s lcd_config_dft = {
 		.lvds_config = &lcd_lvds_config,
 		.vbyone_config = &lcd_vbyone_config,
 		.mipi_config = &lcd_mipi_config,
-		.vlock_param = vlock_param,
 	},
 	.lcd_power = &lcd_power_config,
 	.pinmux_flag = 0xff,
@@ -585,26 +581,6 @@ static struct notifier_block lcd_extern_select_nb = {
 	.notifier_call = lcd_extern_select_notifier,
 };
 
-static int lcd_vlock_param_notifier(struct notifier_block *nb,
-		unsigned long event, void *data)
-{
-	unsigned int *param;
-
-	if ((event & LCD_EVENT_VLOCK_PARAM) == 0)
-		return NOTIFY_DONE;
-	/* LCDPR("%s: 0x%lx\n", __func__, event); */
-
-	param = (unsigned int *)data;
-	memcpy(param, vlock_param,
-		(LCD_VLOCK_PARAM_NUM * sizeof(unsigned int)));
-
-	return NOTIFY_OK;
-}
-
-static struct notifier_block lcd_vlock_param_nb = {
-	.notifier_call = lcd_vlock_param_notifier,
-};
-
 static int lcd_notifier_register(void)
 {
 	int ret = 0;
@@ -634,9 +610,6 @@ static int lcd_notifier_register(void)
 	ret = aml_lcd_notifier_register(&lcd_extern_select_nb);
 	if (ret)
 		LCDERR("register lcd_extern_select_nb failed\n");
-	ret = aml_lcd_notifier_register(&lcd_vlock_param_nb);
-	if (ret)
-		LCDERR("register lcd_vlock_param_nb failed\n");
 
 	return 0;
 }
@@ -652,7 +625,6 @@ static void lcd_notifier_unregister(void)
 
 	aml_lcd_notifier_unregister(&lcd_bl_select_nb);
 	aml_lcd_notifier_unregister(&lcd_extern_select_nb);
-	aml_lcd_notifier_unregister(&lcd_vlock_param_nb);
 }
 /* **************************************** */
 
