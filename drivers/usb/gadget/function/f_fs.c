@@ -262,11 +262,22 @@ static int ffs_ready(struct ffs_data *ffs);
 static void ffs_closed(struct ffs_data *ffs);
 
 #ifdef CONFIG_AMLOGIC_USB
-static int ffs_malloc_buffer(struct ffs_data *ffs)
+static int ffs_malloc_buffer_init(struct ffs_data *ffs, int cout)
 {
 	int i;
 
+	pr_info("assign_ffs_buffer FFS_BUFFER_MAX=%d!!!\n", FFS_BUFFER_MAX);
 	for (i = 0; i < FFS_BUFFER_MAX; i++) {
+		ffs->buffer[i].data_ep = NULL;
+		ffs->buffer[i].data_state = -1;
+	}
+
+	for (i = 0; i < cout; i++) {
+		if (i >= FFS_BUFFER_MAX) {
+			pr_err("<%s>wait alloc (%d) > define (%d)!!!\n",
+				__func__, cout, FFS_BUFFER_MAX);
+			break;
+		}
 		ffs->buffer[i].data_ep = kzalloc(MAX_PAYLOAD_EPS, GFP_KERNEL);
 		if (!ffs->buffer[i].data_ep)
 			return -ENOMEM;
@@ -276,14 +287,36 @@ static int ffs_malloc_buffer(struct ffs_data *ffs)
 	return 0;
 }
 
+struct ffs_data_buffer *ffs_retry_malloc_buffer(struct ffs_data *ffs)
+{
+	int i;
+
+	pr_info("ffs_retry_malloc_buffer\n");
+	for (i = 0; i < FFS_BUFFER_MAX; i++) {
+		if (ffs->buffer[i].data_state == -1) {
+			ffs->buffer[i].data_ep
+				= kzalloc(MAX_PAYLOAD_EPS, GFP_KERNEL);
+			if (!ffs->buffer[i].data_ep)
+				return NULL;
+			ffs->buffer[i].data_state = 0;
+			return &(ffs->buffer[i]);
+		}
+	}
+	pr_info("assign_ffs_buffer failed, FFS_BUFFER_MAX(%d) is too small!!!\n",
+		FFS_BUFFER_MAX);
+	return NULL;
+}
+
 static void ffs_free_buffer(struct ffs_data *ffs)
 {
 	int i;
 
 	for (i = 0; i < FFS_BUFFER_MAX; i++) {
-		kfree(ffs->buffer[i].data_ep);
-		ffs->buffer[i].data_ep = NULL;
-		ffs->buffer[i].data_state = 0;
+		if (ffs->buffer[i].data_state != -1) {
+			kfree(ffs->buffer[i].data_ep);
+			ffs->buffer[i].data_ep = NULL;
+			ffs->buffer[i].data_state = 0;
+		}
 	}
 }
 
@@ -298,8 +331,7 @@ static struct ffs_data_buffer *assign_ffs_buffer(struct ffs_data *ffs)
 		}
 	}
 
-	pr_info("assign_ffs_buffer failed!!!\n");
-	return NULL;
+	return ffs_retry_malloc_buffer(ffs);
 }
 
 static void release_ffs_buffer(struct ffs_data *ffs,
@@ -1073,7 +1105,7 @@ static ssize_t ffs_epfile_io(struct file *file, struct ffs_io_data *io_data)
 		 *reboot adb disconnect,so buffer aways used assign_ffs_buffer.
 		 */
 			buffer = assign_ffs_buffer(epfile->ffs);
-			data_aio_flag = -1;
+			data_aio_flag = 1;
 			if (unlikely(!buffer)) {
 				ret = -ENOMEM;
 				spin_unlock_irq(&epfile->ffs->eps_lock);
@@ -1653,7 +1685,7 @@ ffs_fs_mount(struct file_system_type *t, int flags,
 	if (unlikely(!ffs->data_ep0))
 		return ERR_PTR(-ENOMEM);
 
-	ret = ffs_malloc_buffer(ffs);
+	ret = ffs_malloc_buffer_init(ffs, 10);
 	if (ret < 0)
 		return ERR_PTR(ret);
 
