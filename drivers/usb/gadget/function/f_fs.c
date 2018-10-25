@@ -294,11 +294,13 @@ struct ffs_data_buffer *ffs_retry_malloc_buffer(struct ffs_data *ffs)
 	pr_info("ffs_retry_malloc_buffer\n");
 	for (i = 0; i < FFS_BUFFER_MAX; i++) {
 		if (ffs->buffer[i].data_state == -1) {
+			spin_unlock_irq(&ffs->eps_lock);
 			ffs->buffer[i].data_ep
 				= kzalloc(MAX_PAYLOAD_EPS, GFP_KERNEL);
+			spin_lock_irq(&ffs->eps_lock);
 			if (!ffs->buffer[i].data_ep)
 				return NULL;
-			ffs->buffer[i].data_state = 0;
+			ffs->buffer[i].data_state = 1;
 			return &(ffs->buffer[i]);
 		}
 	}
