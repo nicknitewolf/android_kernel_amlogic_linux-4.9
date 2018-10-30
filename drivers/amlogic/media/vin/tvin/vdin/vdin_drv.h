@@ -45,7 +45,7 @@
 #include "vdin_vf.h"
 #include "vdin_regs.h"
 
-#define VDIN_VER "Ref.2018/04/28"
+#define VDIN_VER "Ref.2018/11/07a"
 
 /*the counter of vdin*/
 #define VDIN_MAX_DEVS			2
@@ -172,6 +172,7 @@ struct vdin_dev_s {
 	struct tvin_sig_property_s prop;
 	struct vframe_provider_s vprov;
 	struct vdin_dv_s dv;
+	struct delayed_work vlock_dwork;
 
 	 /* 0:from gpio A,1:from csi2 , 2:gpio B*/
 	enum bt_path_e bt_path;
