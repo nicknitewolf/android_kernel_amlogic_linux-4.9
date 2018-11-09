@@ -595,7 +595,7 @@
 		tx_op_color_primary = <0>;
 		/*1:enabel osd lut 100 table;0:disable*/
 		cfg_en_osd_100 = <1>;
-		vlock_en = <1>;/*1:enable;0:disable*/
+		vlock_en = <0>;/*1:enable;0:disable*/
 		vlock_mode = <0x4>;
 		/* vlock work mode:
 		 *bit0:auto ENC
