@@ -195,6 +195,9 @@ static bool hdcp22_esm_reset2_enable;
 int sm_pause;
 int pre_port = 0xff;
 static int hdcp_none_wait_max = 100;
+static int enter_sig_stable_cnt;
+static int enter_sig_stable_max = 6;
+
 /* for no signal after esd test issue, phy
  * does't work, cable clock or PLL can't
  * lock, need to do phy reset.
@@ -1671,6 +1674,8 @@ int rx_set_global_variable(const char *buf, int size)
 		return pr_var(pll_unlock_max, index);
 	if (set_pr_var(tmpbuf, esd_phy_rst_max, value, &index, ret))
 		return pr_var(esd_phy_rst_max, index);
+	if (set_pr_var(tmpbuf, enter_sig_stable_max, value, &index, ret))
+		return pr_var(enter_sig_stable_max, index);
 	return 0;
 }
 
@@ -1773,6 +1778,7 @@ void rx_get_global_variable(const char *buf)
 	pr_var(hdcp_none_wait_max, i++);
 	pr_var(pll_unlock_max, i++);
 	pr_var(esd_phy_rst_max, i++);
+	pr_var(enter_sig_stable_max, i++);
 }
 
 void skip_frame(unsigned int cnt)
@@ -1781,7 +1787,7 @@ void skip_frame(unsigned int cnt)
 		rx.skip = (1000 * 100 / rx.pre.frame_rate / 10) + 1;
 		rx.skip = cnt * rx.skip;
 	}
-	rx_pr("rx.skip = %d", rx.skip);
+	rx_pr("rx.skip = %d\n", rx.skip);
 }
 
 void wait_ddc_idle(void)
@@ -2101,6 +2107,7 @@ void rx_main_state_machine(void)
 		dwc_rst_wait_cnt = 0;
 		sig_stable_cnt = 0;
 		sig_unstable_cnt = 0;
+		enter_sig_stable_cnt = 0;
 		rx.state = FSM_SIG_STABLE;
 		break;
 	case FSM_SIG_STABLE:
@@ -2109,6 +2116,8 @@ void rx_main_state_machine(void)
 		rx_get_video_info();
 		if (rx_is_timing_stable()) {
 			if (++sig_stable_cnt >= sig_stable_max) {
+				if (sig_stable_cnt == sig_stable_max)
+					enter_sig_stable_cnt++;
 				get_timing_fmt();
 				if (is_unnormal_format(sig_stable_cnt))
 					break;
@@ -2140,6 +2149,7 @@ void rx_main_state_machine(void)
 				rx.aud_sr_stable_cnt = 0;
 				rx.aud_sr_unstable_cnt = 0;
 				rx.no_signal = false;
+				enter_sig_stable_cnt = 0;
 				//memset(&rx.aud_info, 0,
 					//sizeof(struct aud_info_s));
 				//rx_set_eq_run_state(E_EQ_PASS);
@@ -2154,11 +2164,22 @@ void rx_main_state_machine(void)
 			}
 		} else {
 			sig_stable_cnt = 0;
-			if (sig_unstable_cnt < sig_unstable_max) {
-				sig_unstable_cnt++;
+			if ((sig_unstable_cnt++ < sig_unstable_max) &&
+				(enter_sig_stable_cnt < enter_sig_stable_max))
 				break;
-			}
-			if (rx.err_rec_mode == ERR_REC_EQ_RETRY) {
+			if (enter_sig_stable_cnt >= enter_sig_stable_max) {
+				rx_set_cur_hpd(0);
+				hdmirx_hw_config();
+				hdmi_rx_top_edid_update();
+				rx_set_eq_run_state(E_EQ_START);
+				rx.state = FSM_HPD_HIGH;
+				if (hdcp22_on &&
+					(rx.hdcp.hdcp_version != HDCP_VER_14)) {
+					if (esm_recovery_mode ==
+						ESM_REC_MODE_TMDS)
+						rx_esm_tmdsclk_en(false);
+				}
+			} else if (rx.err_rec_mode == ERR_REC_EQ_RETRY) {
 				rx.state = FSM_WAIT_CLK_STABLE;
 				rx.err_rec_mode = ERR_REC_HPD_RST;
 				rx_set_eq_run_state(E_EQ_START);
