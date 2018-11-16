@@ -38,6 +38,7 @@
 #include <linux/arm-smccc.h>
 
 /* Local include */
+#include "hdmi_rx_repeater.h"
 #include "hdmi_rx_drv.h"
 #include "hdmi_rx_hw.h"
 #include "hdmi_rx_edid.h"
@@ -1194,8 +1195,7 @@ void rx_hdcp14_config(const struct hdmi_rx_hdcp *hdcp)
 		rx_pr("hdcp1.4 normal mode\n");
 	}
 	if (rx.chip_id != CHIP_ID_TXHD) {
-		hdmirx_wr_bits_dwc(DWC_HDCP_RPT_CTRL,
-			REPEATER, hdcp->repeat ? 1 : 0);
+		rx_set_repeat_signal(hdcp->repeat);
 		/* nothing attached downstream */
 		hdmirx_wr_dwc(DWC_HDCP_RPT_BSTATUS, 0);
 	}
