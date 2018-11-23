@@ -1875,30 +1875,25 @@ static void aml_sd_emmc_enable_sdio_irq(struct mmc_host *mmc, int enable)
 	u32 vclkc = 0;
 	struct sd_emmc_clock *pclock = NULL;
 	struct sd_emmc_clock_v3 *pclock_v3 = NULL;
-	u32 vconf = 0;
-	struct sd_emmc_config *pconf = (struct sd_emmc_config *)&vconf;
 	u32 virqc = 0;
 	struct sd_emmc_irq_en *irqc = (struct sd_emmc_irq_en *)&virqc;
 
 	host->sdio_irqen = enable;
+#ifdef AML_MMC_TDMA
 	if (host->xfer_step == XFER_START)
 		return;
 
 	if (enable)
+#endif
 	spin_lock_irqsave(&host->mrq_lock, flags);
-	vconf = readl(host->base + SD_EMMC_CFG);
-	virqc = readl(host->base + SD_EMMC_IRQ_EN);
-
-	pconf->irq_ds = 0;
 
 	/* vstat = sd_emmc_regs->gstatus&SD_EMMC_IRQ_ALL; */
+	virqc = readl(host->base + SD_EMMC_IRQ_EN);
 	if (enable)
 		irqc->irq_sdio = 1;
 	else
 		irqc->irq_sdio = 0;
-
 	writel(virqc, host->base + SD_EMMC_IRQ_EN);
-	writel(vconf, host->base + SD_EMMC_CFG);
 
 	if (host->ctrl_ver >= 3) {
 		pclock_v3 = (struct sd_emmc_clock_v3 *)&vclkc;
@@ -1915,7 +1910,9 @@ static void aml_sd_emmc_enable_sdio_irq(struct mmc_host *mmc, int enable)
 	}
 	pdata->clkc = vclkc;
 
+#ifdef AML_MMC_TDMA
 	if (enable)
+#endif
 	spin_unlock_irqrestore(&host->mrq_lock, flags);
 
 	/* check if irq already occurred */
@@ -2621,8 +2618,9 @@ static irqreturn_t meson_mmc_irq(int irq, void *dev_id)
 			pr_err("%s: warning... data crc, vstat:0x%x, virqc:%x",
 					mmc_hostname(host->mmc),
 					vstat, virqc);
-			pr_err("@ cmd %d with %p; stop %d, status %d\n",
-					mrq->cmd->opcode, mrq->data,
+			pr_err("@ cmd %d arg %x with %p; stop %d, status %d\n",
+					mrq->cmd->opcode, mrq->cmd->arg,
+					 mrq->data,
 					host->cmd_is_stop,
 					host->status);
 		}
