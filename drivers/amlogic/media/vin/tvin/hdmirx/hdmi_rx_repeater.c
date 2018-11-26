@@ -102,8 +102,26 @@ bool hdmirx_is_key_write(void)
 
 void rx_check_repeat(void)
 {
-	if (!hdmirx_repeat_support())
+	if (!hdmirx_repeat_support()) {
+		if (rx.hdcp.repeat != repeat_plug) {
+			rx.hdcp.repeat = repeat_plug;
+			if (!repeat_plug) {
+				memset(&receive_edid, 0, sizeof(receive_edid));
+				up_phy_addr = 0;
+				new_edid = true;
+			}
+			if (rx.open_fg)
+				rx_set_cur_hpd(0);
+		}
+
+		if (new_edid) {
+			hdmi_rx_top_edid_update();
+			if (rx.open_fg)
+				rx_send_hpd_pulse();
+			new_edid = 0;
+		}
 		return;
+	}
 
 	if (rx.hdcp.repeat != repeat_plug) {
 		rx_set_repeat_signal(repeat_plug);
@@ -301,8 +319,11 @@ bool rx_set_repeat_aksv(unsigned char *data, int len, int depth,
 
 void rx_set_repeat_signal(bool repeat)
 {
-	rx.hdcp.repeat = repeat;
-	hdmirx_wr_bits_dwc(DWC_HDCP_RPT_CTRL, REPEATER, repeat);
+	if (hdmirx_repeat_support()) {
+		rx.hdcp.repeat = repeat;
+		hdmirx_wr_bits_dwc(DWC_HDCP_RPT_CTRL, REPEATER, repeat);
+	} else
+		hdmirx_wr_bits_dwc(DWC_HDCP_RPT_CTRL, REPEATER, 0);
 }
 
 bool rx_set_receive_hdcp(unsigned char *data, int len, int depth,
@@ -323,7 +344,8 @@ EXPORT_SYMBOL(rx_set_receive_hdcp);
 
 void rx_repeat_hpd_state(bool plug)
 {
-	repeat_plug = plug;
+	if (!hdmirx_repeat_support())
+		repeat_plug = plug;
 }
 EXPORT_SYMBOL(rx_repeat_hpd_state);
 
@@ -335,8 +357,11 @@ EXPORT_SYMBOL(rx_repeat_hdcp_ver);
 
 void rx_edid_physical_addr(int a, int b, int c, int d)
 {
-	up_phy_addr = ((d & 0xf) << 12)  | ((c & 0xf) << 8) | ((b &
-	0xf) << 4) | (a & 0xf);
+	if (!hdmirx_repeat_support()) {
+		up_phy_addr = ((d & 0xf) << 12)  | ((c & 0xf) << 8) | ((b &
+		0xf) << 4) | (a & 0xf);
+		new_edid = true;
+	}
 }
 EXPORT_SYMBOL(rx_edid_physical_addr);
 

@@ -1810,10 +1810,7 @@ void hdmirx_open_port(enum tvin_port_e port)
 	//rx.wait_no_sig_cnt = 0;
 	vic_check_en = true;
 	dvi_check_en = true;
-	if (hdmirx_repeat_support())
-		rx.hdcp.repeat = repeat_plug;
-	else
-		rx.hdcp.repeat = 0;
+	rx.hdcp.repeat = repeat_plug;
 
 	if ((pre_port != rx.port) ||
 		(rx_get_cur_hpd_sts() == 0) ||
