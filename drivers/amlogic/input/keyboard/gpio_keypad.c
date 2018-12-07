@@ -52,11 +52,6 @@ struct gpio_keypad {
 	struct input_dev *input_dev;
 };
 
-#ifdef CONFIG_SEI_RESET_KEY
-static int long_press_times = 0;
-#define KEY_CODE_ENTER  28
-#endif
-
 static irqreturn_t gpio_irq_handler(int irq, void *data)
 {
 	struct gpio_keypad *keypad;
@@ -79,51 +74,6 @@ static struct pin_desc *get_current_key(struct gpio_keypad *keypad)
 	}
 	return NULL;
 }
-#ifdef CONFIG_SEI_RESET_KEY
-static void report_key_code(struct gpio_keypad *keypad, int gpio_val)
-{
-	struct pin_desc *key;
-
-	if (keypad->count < KEY_JITTER_COUNT)
-		keypad->count++;
-	else {
-		key = keypad->current_key;
-		key->current_status = gpio_val;
-		if (key->current_status) {
-                    if (long_press_times > 20)
-                    {
-                        //      dev_info(&kp->input->dev,"long press reset key is %d 1\n",long_press_times);
-                        //long press.
-                        input_report_key(keypad->input_dev, KEY_CODE_ENTER, 1);
-                        input_sync(keypad->input_dev);
-                        input_report_key(keypad->input_dev,  KEY_CODE_ENTER, 0);
-                        input_sync(keypad->input_dev);
-                     } else {
-                         //       dev_info(&kp->input->dev,"long press reset key is %d 2\n",long_press_times);
-                         //short press
-                         input_report_key(keypad->input_dev, key->code, 1);
-                         input_sync(keypad->input_dev);
-			 input_report_key(keypad->input_dev,  key->code, 0);
-			 input_sync(keypad->input_dev);
-                     }
-			if (keypad->use_irq)
-				enable_irq(key->irq_num);
-			dev_info(&(keypad->input_dev->dev),
-				"key %d up.\n",
-				key->code);
-		} else {
-                        long_press_times = 0;
-			if (keypad->use_irq)
-				disable_irq_nosync(key->irq_num);
-
-			dev_info(&(keypad->input_dev->dev),
-				"key %d down.\n",
-				key->code);
-		}
-		keypad->count = 0;
-	}
-}
-#else
 static void report_key_code(struct gpio_keypad *keypad, int gpio_val)
 {
 	struct pin_desc *key;
@@ -156,7 +106,6 @@ static void report_key_code(struct gpio_keypad *keypad, int gpio_val)
 		keypad->count = 0;
 	}
 }
-#endif
 static void polling_timer_handler(unsigned long data)
 {
 	struct gpio_keypad *keypad;
@@ -165,11 +114,6 @@ static void polling_timer_handler(unsigned long data)
 	int gpio_val;
 
 	keypad = (struct gpio_keypad *)data;
-#ifdef CONFIG_SEI_RESET_KEY
-        if (long_press_times < 1000) {
-            long_press_times++;
-        }
-#endif
 	if (keypad->use_irq) {//irq mode
 		keypad->current_key = get_current_key(keypad);
 		if (!(keypad->current_key))
@@ -268,13 +212,8 @@ static int meson_gpio_kp_probe(struct platform_device *pdev)
 	for (i = 0; i < keypad->key_size; i++) {
 		set_bit(keypad->key[i].code,  input_dev->keybit);
 		dev_info(&pdev->dev, "%s key(%d) registed.\n",
-			 keypad->key[i].name, keypad->key[i].code);
+			keypad->key[i].name, keypad->key[i].code);
 	}
-
-#ifdef CONFIG_SEI_RESET_KEY
-        set_bit(KEY_CODE_ENTER,  input_dev->keybit);
-#endif
-
 	input_dev->name = "gpio_keypad";
 	input_dev->phys = "gpio_keypad/input0";
 	input_dev->dev.parent = &pdev->dev;
