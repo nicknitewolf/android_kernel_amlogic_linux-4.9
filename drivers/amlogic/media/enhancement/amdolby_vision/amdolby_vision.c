@@ -3301,15 +3301,7 @@ static int dolby_vision_policy_process(
 				mode_change = 0;
 			return mode_change;
 		}
-		if (vinfo && sink_support_dolby_vision(vinfo)) {
-			/* TV support DOVI, All -> DOVI */
-			if (dolby_vision_mode !=
-			DOLBY_VISION_OUTPUT_MODE_IPT_TUNNEL) {
-				pr_dolby_dbg("dovi output -> DOLBY_VISION_OUTPUT_MODE_IPT_TUNNEL\n");
-				*mode = DOLBY_VISION_OUTPUT_MODE_IPT_TUNNEL;
-				mode_change = 1;
-			}
-		} else if (vinfo && sink_support_hdr(vinfo)
+		if (vinfo && sink_support_hdr(vinfo)
 			&& (dolby_vision_hdr10_policy & 2)) {
 			/* TV support HDR, All -> HDR */
 			if (dolby_vision_mode !=
