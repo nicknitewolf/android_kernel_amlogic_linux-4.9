@@ -16,7 +16,8 @@ extern void dolby_vision_set_toggle_flag(int flag);
 extern int dolby_vision_wait_metadata(struct vframe_s *vf);
 extern int dolby_vision_pop_metadata(void);
 extern int dolby_vision_update_metadata(struct vframe_s *vf);
-extern int dolby_vision_process(struct vframe_s *vf, u32 display_size);
+extern int dolby_vision_process(struct vframe_s *vf, u32 display_size,
+	u8 pps_state);
 extern void dolby_vision_init_receiver(void *pdev);
 extern void dolby_vision_vf_put(struct vframe_s *vf);
 extern struct vframe_s *dolby_vision_vf_peek_el(struct vframe_s *vf);
@@ -28,7 +29,7 @@ extern void dolby_vision_update_pq_config(
 	char *pq_config_buf);
 extern int dolby_vision_update_setting(void);
 extern bool is_dolby_vision_stb_mode(void);
-extern bool is_meson_g12a(void);
+extern bool is_meson_g12(void);
 extern bool is_meson_gxm(void);
 extern bool is_meson_txlx(void);
 extern bool is_meson_txlx_tvmode(void);
@@ -50,5 +51,7 @@ extern int enable_rgb_to_yuv_matrix_for_dvll(
 	int32_t on, uint32_t *coeff_orig, uint32_t bits);
 
 extern bool is_dovi_frame(struct vframe_s *vf);
+extern void update_graphic_width_height(unsigned int width,
+	unsigned int height);
 
 #endif

@@ -2821,7 +2821,9 @@ static void vsync_toggle_frame(struct vframe_s *vf)
 		    &frame_parms[1] : &frame_parms[0];
 
 		vpp_set_filters(process_3d_type, wide_setting, vf,
-			next_frame_par, vinfo);
+			next_frame_par, vinfo,
+			(is_dolby_vision_on() &&
+			is_dolby_vision_stb_mode()));
 
 		/* apply new vpp settings */
 		frame_par_ready_to_set = 1;
@@ -5304,7 +5306,11 @@ static irqreturn_t vsync_isr_in(int irq, void *dev_id)
 
 			amlog_mask_if(toggle_cnt > 0, LOG_MASK_FRAMESKIP,
 				      "skipped\n");
-
+#ifdef CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_DOLBYVISION
+			if (is_dolby_vision_enable()
+				&& dolby_vision_need_wait())
+				break;
+#endif
 			set_hdr_to_frame(vf);
 
 #if defined(CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_VECM)
@@ -5319,11 +5325,6 @@ static irqreturn_t vsync_isr_in(int irq, void *dev_id)
 				cur_frame_par ?
 				cur_frame_par->supsc1_vert_ratio :
 				0) == 1)
-				break;
-#endif
-#ifdef CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_DOLBYVISION
-			if (is_dolby_vision_enable()
-			&& dolby_vision_need_wait())
 				break;
 #endif
 			/*
@@ -5551,6 +5552,8 @@ SET_FILTER:
 #ifdef CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_DOLBYVISION
 	if (is_dolby_vision_enable()) {
 		u32 frame_size = 0, h_size, v_size;
+		u8 pps_state = 0; /* pps no change */
+
 		/* force toggle when keeping frame after playing */
 		if ((cur_dispbuf == &vf_local)
 			&& !toggle_vf
@@ -5575,6 +5578,24 @@ SET_FILTER:
 		}
 #endif
 		if (cur_frame_par) {
+			if (frame_par_ready_to_set || frame_par_force_to_set) {
+				struct vppfilter_mode_s *vpp_filter =
+					&cur_frame_par->vpp_filter;
+				if ((vpp_filter->vpp_hsc_start_phase_step
+					== 0x1000000) &&
+					(vpp_filter->vpp_vsc_start_phase_step
+					== 0x1000000) &&
+					(vpp_filter->vpp_hsc_start_phase_step ==
+					vpp_filter->vpp_hf_start_phase_step) &&
+					!vpp_filter->vpp_pre_vsc_en &&
+					!vpp_filter->vpp_pre_hsc_en &&
+					!cur_frame_par->supsc0_enable &&
+					!cur_frame_par->supsc1_enable &&
+					bypass_pps)
+					pps_state = 2; /* pps disable */
+				else
+					pps_state = 1; /* pps enable */
+			}
 			if (cur_frame_par->VPP_hd_start_lines_
 				>=  cur_frame_par->VPP_hd_end_lines_)
 				h_size = 0;
@@ -5597,7 +5618,7 @@ SET_FILTER:
 				toggle_vf->compHeight : toggle_vf->height;
 			frame_size = (h_size << 16) | v_size;
 		}
-		dolby_vision_process(toggle_vf, frame_size);
+		dolby_vision_process(toggle_vf, frame_size, pps_state);
 		dolby_vision_update_setting();
 	}
 #endif
@@ -5893,7 +5914,7 @@ SET_FILTER:
 			16) | (cur_frame_par->video_input_h & 0x1fff));
 
 		/* vpp super scaler */
-		if (get_cpu_type() >= MESON_CPU_MAJOR_ID_GXTVBB)
+		if (get_cpu_type() >= MESON_CPU_MAJOR_ID_GXTVBB) {
 			vpp_set_super_scaler_regs(cur_frame_par->supscl_path,
 				cur_frame_par->supsc0_enable,
 				cur_frame_par->spsc0_w_in,
@@ -5907,6 +5928,14 @@ SET_FILTER:
 				cur_frame_par->supsc1_vert_ratio,
 				vinfo->width,
 				vinfo->height);
+			if (is_dolby_vision_on() &&
+				is_dolby_vision_stb_mode() &&
+				!cur_frame_par->supsc0_enable &&
+				!cur_frame_par->supsc1_enable) {
+				VSYNC_WR_MPEG_REG(VPP_SRSHARP0_CTRL, 0);
+				VSYNC_WR_MPEG_REG(VPP_SRSHARP1_CTRL, 0);
+			}
+		}
 
 		/* vpp filters */
 		/* SET_MPEG_REG_MASK(VPP_SC_MISC + cur_dev->vpp_off, */
@@ -6546,7 +6575,9 @@ int get_current_vscale_skip_count(struct vframe_s *vf)
 	int ret = 0;
 	static struct vpp_frame_par_s frame_par;
 
-	vpp_set_filters(process_3d_type, wide_setting, vf, &frame_par, vinfo);
+	vpp_set_filters(process_3d_type, wide_setting, vf, &frame_par, vinfo,
+		(is_dolby_vision_on() &&
+		is_dolby_vision_stb_mode()));
 	ret = frame_par.vscale_skip_count;
 	if (cur_frame_par && (process_3d_type & MODE_3D_ENABLE))
 		ret |= (cur_frame_par->vpp_3d_mode<<8);
