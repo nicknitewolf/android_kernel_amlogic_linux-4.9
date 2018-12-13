@@ -948,7 +948,7 @@ static int sync_render_single_fence(u32 index, u32 yres,
 	mutex_unlock(&post_fence_list_lock);
 	kthread_queue_work(&buffer_toggle_worker, &buffer_toggle_work);
 	request->out_fen_fd = out_fence_fd;
-	__close_fd(current->files, fence_map->in_fd);
+	__close_fd(current->files, request->in_fen_fd);
 	return out_fence_fd;
 }
 
