@@ -90,7 +90,7 @@ static void hdmi_tx_construct_aud_packet(
 				channel_status_freq[audio_param->sample_rate];
 			CHAN_STAT_BUF[4] = CHAN_STAT_BUF[24+4] =
 				channel_status_sample_word_length[
-				audio_param->sample_size]|
+				audio_param->sample_size & 0x3]|
 				((~channel_status_freq[
 				audio_param->sample_rate])<<4);
 		}
