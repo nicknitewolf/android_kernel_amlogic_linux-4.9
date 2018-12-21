@@ -756,6 +756,7 @@ static void Edid_ParsingVendSpec(struct rx_cap *pRXCap,
 	struct dv_info *dv = &pRXCap->dv_info;
 	unsigned char *dat = buf;
 	unsigned char pos = 0;
+	unsigned int ieeeoui = 0;
 
 	memset(dv, 0, sizeof(struct dv_info));
 	dv->block_flag = CORRECT;
@@ -770,15 +771,21 @@ static void Edid_ParsingVendSpec(struct rx_cap *pRXCap,
 	}
 
 	pos++;
-	dv->ieeeoui = dat[pos++];
-	dv->ieeeoui += dat[pos++] << 8;
-	dv->ieeeoui += dat[pos++] << 16;
-	if (dv->ieeeoui != DV_IEEE_OUI) {
-		dv->block_flag = ERROR_LENGTH;
+
+	ieeeoui = dat[pos++];
+	ieeeoui += dat[pos++] << 8;
+	ieeeoui += dat[pos++] << 16;
+
+	if (ieeeoui != DV_IEEE_OUI) {
+		dv->block_flag = ERROR_OUI;
 		return;
 	}
-
+	dv->ieeeoui = ieeeoui;
 	dv->ver = (dat[pos] >> 5) & 0x7;
+	if ((dv->ver) > 2) {
+		dv->block_flag = ERROR_VER;
+		return;
+	}
 	/* Refer to DV 2.9 Page 27 */
 	if (dv->ver == 0) {
 		if (dv->length == 0x19) {
