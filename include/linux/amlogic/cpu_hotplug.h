@@ -30,6 +30,8 @@ unsigned int cpu_hotplug_get_min(int clustr);
 int cpu_hotplug_gov(int clustr, int num, int flg, cpumask_t *mask);
 int select_cpu_for_hotplug(struct task_struct *p,
 				  int cpu, int sd_flags, int wake_flags);
+void cpu_hotplug_reserve_cpus(unsigned long cpumask);
+extern unsigned long reserved_cpus;
 #else
 static inline void cpufreq_set_max_cpu_num(unsigned int n, unsigned int c)
 {
@@ -56,6 +58,9 @@ static inline int select_cpu_for_hotplug(struct task_struct *p,
 	return -1;
 }
 
+static void cpu_hotplug_reserve_cpus(unsigned long cpumask)
+{
+}
 #endif
 
 #endif
