@@ -1235,13 +1235,13 @@
 		pinctrl-names = "audio_i2s";
 		pinctrl-0 = <&aml_audio_i2s>;
 		/*avout mute gpio*/
-		mute_gpio-gpios = <&gpio GPIODV_5 GPIO_ACTIVE_HIGH>;
+		/*mute_gpio-gpios = <&gpio GPIODV_5 GPIO_ACTIVE_HIGH>;*/
 		/*switch ARC_IN & SPDIF_IN*/
 		source_switch-gpios = <&gpio GPIOZ_4 GPIO_ACTIVE_HIGH>;
 		source_switch_inv = <1>;
-		sleep_time = <100>;
 		/*analog amp mute*/
-		amp_mute_gpio-gpios = <&gpio GPIOZ_2 GPIO_ACTIVE_HIGH>;
+		/*amp_mute_gpio-gpios = <&gpio GPIOZ_2 GPIO_ACTIVE_HIGH>;*/
+		/*sleep_time = <100>;*/
 		/*aux_dev = <&cs42528>;*/
 		cpu_list = <&cpudai0 &cpudai1 &cpudai2>;
 		codec_list = <&codec0 &codec1 &codec2>;
@@ -1456,6 +1456,8 @@
 		codec_name = "cs42528";
 		reg = <0x4E>;
 		reset_pin = <&gpio GPIOZ_17 GPIO_ACTIVE_LOW>;
+		pdn_pin = <&gpio GPIOZ_2 GPIO_ACTIVE_LOW>;
+		amp_pin = <&gpio GPIODV_5 GPIO_ACTIVE_LOW>;
 		status = "okay";
 	};
 };
