@@ -21,6 +21,7 @@
 static void cs42528_early_suspend(struct early_suspend *h);
 static void cs42528_late_resume(struct early_suspend *h);
 #endif
+static int Enable_Amp(struct snd_soc_codec *codec, int enable);
 
 /* Power-up register defaults */
 struct reg_default cs42528_reg_defaults[] = {
@@ -103,6 +104,36 @@ static const DECLARE_TLV_DB_SCALE(dac_tlv, -12700, 50, 0);
 /* -15dB to 15dB with step of 1dB */
 static const DECLARE_TLV_DB_SCALE(adc_tlv, -1500, 100, 0);
 
+static const char *const amp_mute_texts[] = {
+	"UNMUTE", "MUTE"};
+
+static const struct soc_enum amp_mute_enum =
+	SOC_ENUM_SINGLE(SND_SOC_NOPM, 0, ARRAY_SIZE(amp_mute_texts),
+			amp_mute_texts);
+
+static int get_amp_mute(struct snd_kcontrol *kcontrol,
+				   struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
+	struct cs42528_priv *cs42528 = snd_soc_codec_get_drvdata(codec);
+
+	ucontrol->value.enumerated.item[0] = cs42528->pdata->amp_mute;
+
+	return 0;
+}
+
+static int set_amp_mute(struct snd_kcontrol *kcontrol,
+				   struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
+	struct cs42528_priv *cs42528 = snd_soc_codec_get_drvdata(codec);
+
+	cs42528->pdata->amp_mute = ucontrol->value.enumerated.item[0];
+	Enable_Amp(codec, cs42528->pdata->amp_mute);
+
+	return 0;
+}
+
 static const char *const cs42528_szc[] = {
 	"Immediate Change",
 	"Zero Cross",
@@ -132,6 +163,8 @@ static const struct snd_kcontrol_new cs42528_snd_controls[] = {
 	SOC_ENUM("DAC Soft Ramp & Zero Cross Control Switch", dac_szc_enum),
 	SOC_SINGLE("DAC Auto Mute Switch", CS42528_TXCTL, 3, 1, 0),
 	SOC_SINGLE("DAC Serial Port Mute Switch", CS42528_TXCTL, 2, 1, 0),
+	SOC_SINGLE("DAC Channel Mute", CS42528_DACMUTE, 0, 0xff, 0),
+	SOC_ENUM_EXT("AMP MUTE", amp_mute_enum, get_amp_mute, set_amp_mute),
 };
 
 #if 0
@@ -203,7 +236,7 @@ static int cs42528_set_dai_sysclk(struct snd_soc_dai *codec_dai,
 }
 
 static int cs42528_set_dai_fmt(struct snd_soc_dai *codec_dai,
-			       unsigned int format)
+				   unsigned int format)
 {
 	struct snd_soc_codec *codec = codec_dai->codec;
 	struct cs42528_priv *cs42528 = snd_soc_codec_get_drvdata(codec);
@@ -245,8 +278,8 @@ static int cs42528_set_dai_fmt(struct snd_soc_dai *codec_dai,
 }
 
 static int cs42528_hw_params(struct snd_pcm_substream *substream,
-			     struct snd_pcm_hw_params *params,
-			     struct snd_soc_dai *dai)
+				 struct snd_pcm_hw_params *params,
+				 struct snd_soc_dai *dai)
 {
 	unsigned int rate;
 
@@ -280,15 +313,6 @@ static int cs42528_hw_params(struct snd_pcm_substream *substream,
 
 static int cs42528_digital_mute(struct snd_soc_dai *dai, int mute)
 {
-	struct snd_soc_codec *codec = dai->codec;
-
-	pr_info("%s %d mute: %d\n", __func__, __LINE__, mute);
-
-	if (mute)
-		snd_soc_write(codec, CS42528_DACMUTE, 0xff);
-	else
-		snd_soc_write(codec, CS42528_DACMUTE, 0);
-
 	return 0;
 }
 
@@ -324,20 +348,61 @@ static int reset_cs42528(struct snd_soc_codec *codec)
 	struct cs42528_platform_data *pdata = cs42528->pdata;
 	int ret = 0;
 
-	if (pdata->reset_pin < 0)
+	if (pdata->reset_pin <= 0 || pdata->pdn_pin <= 0)
 		return 0;
 
-	ret = devm_gpio_request_one(codec->dev, pdata->reset_pin,
-					    GPIOF_OUT_INIT_LOW,
-					    "cs42528-reset-pin");
+	ret = devm_gpio_request_one(codec->dev, pdata->pdn_pin,
+						GPIOF_OUT_INIT_HIGH,
+						"cs42528-pdn-pin");
 	if (ret < 0)
-		return -1;
+		pr_err("%s %d can't get GPIO pdn pin!\n", __func__, __LINE__);
+	else {
+		gpio_direction_output(pdata->pdn_pin, GPIOF_OUT_INIT_HIGH);
+		pr_info("%s %d set GPIO pdn pin high!\n", __func__, __LINE__);
+	}
 
-	gpio_direction_output(pdata->reset_pin, GPIOF_OUT_INIT_LOW);
-	mdelay(1);
-	gpio_direction_output(pdata->reset_pin, GPIOF_OUT_INIT_HIGH);
-	msleep(85);
+	ret = devm_gpio_request_one(codec->dev, pdata->reset_pin,
+						GPIOF_OUT_INIT_LOW,
+						"cs42528-reset-pin");
+	if (ret >= 0) {
+		gpio_direction_output(pdata->reset_pin, GPIOF_OUT_INIT_LOW);
+		mdelay(1);
+		gpio_direction_output(pdata->reset_pin, GPIOF_OUT_INIT_HIGH);
+		msleep(85);
+		pr_info("%s %d set GPIO reset pin high!\n", __func__, __LINE__);
+	} else {
+		pr_err("%s %d can't get GPIO reset pin!\n", __func__, __LINE__);
+	}
 
+	ret = devm_gpio_request_one(codec->dev, pdata->amp_pin,
+						GPIOF_OUT_INIT_LOW,
+						"cs42528-amp-pin");
+	if (ret >= 0)
+		pr_info("%s %d set GPIO amp pin high!\n", __func__, __LINE__);
+	else
+		pr_err("%s %d can't get GPIO amp pin!\n", __func__, __LINE__);
+
+	return 0;
+}
+
+static int Enable_Amp(struct snd_soc_codec *codec, int enable)
+{
+	struct cs42528_priv *cs42528 = snd_soc_codec_get_drvdata(codec);
+	struct cs42528_platform_data *pdata = cs42528->pdata;
+
+	if (pdata->amp_pin > 0) {
+		if (enable == 1) {
+			gpio_direction_output(pdata->amp_pin,
+				GPIOF_OUT_INIT_LOW);
+			pr_info("%s %d set GPIO amp pin low!\n",
+				__func__, __LINE__);
+		} else {
+			gpio_direction_output(pdata->amp_pin,
+				GPIOF_OUT_INIT_HIGH);
+			pr_info("%s %d set GPIO amp pin high!\n",
+				__func__, __LINE__);
+		}
+	}
 	return 0;
 }
 
@@ -359,6 +424,15 @@ static int cs42528_init(struct snd_soc_codec *codec)
 
 	// Write CS42528 Powerup Register
 	snd_soc_write(codec, CS42528_PWRCTL, 0x40);
+
+	// unmute
+	snd_soc_write(codec, CS42528_VOLCTLA1, 0);
+	snd_soc_write(codec, CS42528_VOLCTLB1, 0);
+	snd_soc_write(codec, CS42528_VOLCTLA2, 0);
+	snd_soc_write(codec, CS42528_VOLCTLB2, 0);
+	snd_soc_write(codec, CS42528_DACMUTE, 0);
+
+	Enable_Amp(codec, 1);
 
 	return 0;
 }
@@ -448,6 +522,8 @@ static int cs42528_parse_dt(
 {
 	int ret = 0;
 	int reset_pin = -1;
+	int pdn_pin = -1;
+	int amp_pin = -1;
 
 	reset_pin = of_get_named_gpio(np, "reset_pin", 0);
 	if (reset_pin < 0) {
@@ -458,11 +534,29 @@ static int cs42528_parse_dt(
 	}
 	cs42528->pdata->reset_pin = reset_pin;
 
+	pdn_pin = of_get_named_gpio(np, "pdn_pin", 0);
+	if (pdn_pin < 0) {
+		pr_err("%s fail to get pdn pin from dts!\n", __func__);
+		ret = -1;
+	} else {
+		pr_info("%s pdn_pin = %d!\n", __func__, pdn_pin);
+	}
+	cs42528->pdata->pdn_pin = pdn_pin;
+
+	amp_pin = of_get_named_gpio(np, "amp_pin", 0);
+	if (amp_pin < 0) {
+		pr_err("%s fail to get amp_pin from dts!\n", __func__);
+		ret = -1;
+	} else {
+		pr_info("%s amp_pin = %d!\n", __func__, amp_pin);
+	}
+	cs42528->pdata->amp_pin = amp_pin;
+
 	return ret;
 }
 
 static int cs42528_i2c_probe(struct i2c_client *i2c,
-			     const struct i2c_device_id *id)
+				 const struct i2c_device_id *id)
 {
 	struct cs42528_priv *cs42528;
 	struct cs42528_platform_data *pdata;
@@ -470,7 +564,7 @@ static int cs42528_i2c_probe(struct i2c_client *i2c,
 	const char *codec_name;
 
 	cs42528 = devm_kzalloc(&i2c->dev, sizeof(struct cs42528_priv),
-			       GFP_KERNEL);
+				   GFP_KERNEL);
 	if (!cs42528)
 		return -ENOMEM;
 
@@ -507,7 +601,7 @@ static int cs42528_i2c_probe(struct i2c_client *i2c,
 	i2c_set_clientdata(i2c, cs42528);
 
 	ret = snd_soc_register_codec(&i2c->dev, &soc_codec_dev_cs42528,
-				     &cs42528_dai, 1);
+					 &cs42528_dai, 1);
 	if (ret != 0)
 		dev_err(&i2c->dev, "Failed to register codec (%d)\n", ret);
 

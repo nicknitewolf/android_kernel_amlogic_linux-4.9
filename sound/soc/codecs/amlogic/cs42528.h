@@ -4,6 +4,9 @@
 struct cs42528_platform_data {
 	int reset_pin;
 	int mute_pin;
+	int pdn_pin;
+	int amp_pin;
+	int amp_mute;
 };
 
 /* CS42888 register map */
