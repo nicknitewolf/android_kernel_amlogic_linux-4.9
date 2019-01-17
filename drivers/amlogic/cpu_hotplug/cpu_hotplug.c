@@ -50,6 +50,23 @@ struct cpu_hotplug_s {
 
 static struct cpu_hotplug_s hpg;
 
+unsigned long reserved_cpus;
+
+static int __init setup_hotplug_reserved_cpus(char *str)
+{
+	int ret;
+
+	ret = kstrtoul(str, 16, &reserved_cpus);
+
+	if (ret)
+		pr_err("read hotplug_reserved_cpus err:%s\n", str);
+	else
+		pr_info("hotplug_reserved_cpus = 0x%lx\n", reserved_cpus);
+
+	return 1;
+}
+__setup("hotplug_reserved_cpus=", setup_hotplug_reserved_cpus);
+
 int cpu_hotplug_cpumask_init(void)
 {
 	int cpu, clstr;
@@ -150,13 +167,16 @@ int cpu_hotplug_gov(int clustr, int num, int flg, cpumask_t *mask)
 
 static int __ref cpu_hotplug_thread(void *data)
 {
-	unsigned int clustr, cpu, flg, online;
+	unsigned int clustr, cpu = 0, flg, online;
 	int target, cnt;
 	unsigned long flags;
 
 	while (1) {
+		pr_info("%s()\n", __func__);
+
 		if (kthread_should_stop())
 			break;
+
 		mutex_lock(&hpg.mutex);
 		for (clustr = 0; clustr < hpg.clusters; clustr++) {
 			if (!hpg.flgs[clustr])
@@ -171,6 +191,10 @@ static int __ref cpu_hotplug_thread(void *data)
 					if (online >= hpg.gov_num[clustr] ||
 						online >= hpg.max_num[clustr])
 						break;
+
+					pr_info("%s() device_online: %d\n",
+						__func__,
+						cpu);
 					device_online(get_cpu_device(cpu));
 					cpumask_set_cpu(cpu,
 					&hpg.null_thread[clustr]->cpus_allowed);
@@ -183,25 +207,42 @@ static int __ref cpu_hotplug_thread(void *data)
 						break;
 					if (cnt++ > 20)
 						break;
+
 					raw_spin_lock_irqsave(
 					&hpg.null_thread[clustr]->pi_lock,
 					flags);
+
 					target = cpumask_next(
 					cpumask_first(&hpg.cpumask[clustr]),
 					&hpg.cpumask[clustr]);
+
 					target = select_cpu_for_hotplug(
 						hpg.null_thread[clustr],
 						target, SD_BALANCE_WAKE, 0);
+
 					raw_spin_unlock_irqrestore(
 					&hpg.null_thread[clustr]->pi_lock,
 					flags);
+
 					if (!cpumask_test_cpu(target,
 						&hpg.cpumask[clustr])) {
 						goto clear_cpu;
 					}
+
 					if (!cpu_online(target) ||
 					cpumask_first(hpg.cpumask) == target)
 						goto clear_cpu;
+
+					if (1 << target & reserved_cpus) {
+						pr_info("%d in resrved 0x%lx\n",
+							target,
+							reserved_cpus);
+						goto clear_cpu;
+					}
+
+					pr_info("%s() device_offline: %u\n",
+						__func__,
+						target);
 					device_offline(get_cpu_device(target));
 clear_cpu:
 					cpumask_clear_cpu(target,
@@ -248,16 +289,33 @@ static ssize_t store_hotplug_max_cpus(struct kobject *kobj,
 
 	ret = kstrtouint(buf, 0, &input);
 
+	pr_info("%s() input = 0x%x\n", __func__, input);
+
 	for (c = 0; c < hpg.clusters; c++)	{
 		max = input & 0xff;
-		if (max)
+		if (max) {
+			pr_info("%s() max = %u, cluster = %u\n",
+				__func__, max, c);
 			cpu_hotplug_set_max(max, c);
+		}
 		input = input >> 8;
 	}
 	return count;
 }
 define_one_global_rw(hotplug_max_cpus);
 
+/*
+ *  reserved cpumask can't plug off
+ *  eg:
+ *    cpu0 & cpu1 -> 0x3
+ *    cpu3        -> 0x8
+ *
+ */
+void cpu_hotplug_reserve_cpus(unsigned long cpumask)
+{
+	pr_info("%s() mask = 0x%lx\n", __func__, cpumask);
+	reserved_cpus = cpumask;
+}
 
 static int __init cpu_hotplug_init(void)
 {

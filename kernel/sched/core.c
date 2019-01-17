@@ -93,6 +93,8 @@
 #include <trace/events/sched.h>
 #include "walt.h"
 
+#include <linux/amlogic/cpu_hotplug.h>
+
 DEFINE_MUTEX(sched_domains_mutex);
 DEFINE_PER_CPU_SHARED_ALIGNED(struct rq, runqueues);
 
@@ -1113,6 +1115,9 @@ void do_set_cpus_allowed(struct task_struct *p, const struct cpumask *new_mask)
 {
 	struct rq *rq = task_rq(p);
 	bool queued, running;
+	struct cpumask mask;
+
+	cpumask_copy(&mask, new_mask);
 
 	lockdep_assert_held(&p->pi_lock);
 
@@ -1130,7 +1135,29 @@ void do_set_cpus_allowed(struct task_struct *p, const struct cpumask *new_mask)
 	if (running)
 		put_prev_task(rq, p);
 
-	p->sched_class->set_cpus_allowed(p, new_mask);
+	if (reserved_cpus & 0x8) {
+		if (p->mm && *cpumask_bits(&p->cpus_allowed) == 0x8) {
+			*cpumask_bits(&mask) = 0x8;
+			pr_info("keep cpu3 bind: %d:%s 0x%lx->0x%lx:0x%lx\n",
+				p->pid, p->comm,
+				*cpumask_bits(&p->cpus_allowed),
+				*cpumask_bits(new_mask),
+				*cpumask_bits(&mask));
+		}
+
+		if (*cpumask_bits(&mask) == 0x8) {
+			pr_info("set affinity() %d:%s 0x%lx->0x%lx:0x%lx\n",
+				p->pid, p->comm,
+				*cpumask_bits(&p->cpus_allowed),
+				*cpumask_bits(new_mask),
+				*cpumask_bits(&mask));
+			dump_stack();
+		} else
+			cpumask_clear_cpu(3, &mask);
+
+	}
+
+	p->sched_class->set_cpus_allowed(p, &mask);
 
 	if (queued)
 		enqueue_task(rq, p, ENQUEUE_RESTORE);
