@@ -1932,7 +1932,7 @@ void vdin_set_wr_ctrl_vsync(struct vdin_dev_s *devp,
 		hconv_mode = 2;
 		swap_cbcr = 0;
 	}
-#ifdef CONFIG_AML_RDMA
+#ifdef CONFIG_AMLOGIC_MEDIA_RDMA
 	if (rdma_enable) {
 		rdma_write_reg_bits(devp->rdma_handle,
 			VDIN_WR_CTRL+devp->addr_offset,
@@ -2026,7 +2026,7 @@ unsigned int vdin_get_total_v(unsigned int offset)
 void vdin_set_canvas_id(struct vdin_dev_s *devp, unsigned int rdma_enable,
 			unsigned int canvas_id)
 {
-#ifdef CONFIG_AML_RDMA
+#ifdef CONFIG_AMLOGIC_MEDIA_RDMA
 	if (rdma_enable) {
 		if (is_meson_g12a_cpu() || is_meson_g12b_cpu()) {
 			rdma_write_reg_bits(devp->rdma_handle,
@@ -2052,7 +2052,7 @@ unsigned int vdin_get_canvas_id(unsigned int offset)
 void vdin_set_chma_canvas_id(struct vdin_dev_s *devp, unsigned int rdma_enable,
 		unsigned int canvas_id)
 {
-#ifdef CONFIG_AML_RDMA
+#ifdef CONFIG_AMLOGIC_MEDIA_RDMA
 	if (rdma_enable)
 		rdma_write_reg_bits(devp->rdma_handle,
 				VDIN_WR_CTRL2+devp->addr_offset,
