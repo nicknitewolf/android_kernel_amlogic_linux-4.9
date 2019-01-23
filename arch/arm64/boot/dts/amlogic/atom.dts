@@ -504,7 +504,7 @@
 		dev_name = "vdin0";
 		status = "okay";
 		reserve-iomap = "true";
-		flag_cma = <1>;/*1:share with codec_mm;2:cma alone*/
+		flag_cma = <0x101>;/*1:share with codec_mm;2:cma alone*/
 		/* MByte, if 10bit disable: 64M(YUV422),
 		 * if 10bit enable: 64*1.5 = 96M(YUV422)
 		 * if support 4K2K-YUV444-10bit-WR:3840*2160*4*4 ~= 128M
@@ -1303,7 +1303,7 @@
 		#thermal-sensor-cells = <1>;
 		cooling_devices {
 			cpufreq_cool_cluster0 {
-				min_state = <1000000>;
+				min_state = <1200000>;
 				dyn_coeff = <140>;
 				cluster_id = <0>;
 				node_name = "cpus";
@@ -1387,17 +1387,17 @@
 
 			trips {
 				switch_on: trip-point@0 {
-					temperature = <70000>;
-					hysteresis = <1000>;
-					type = "passive";
-				};
-				control: trip-point@1 {
 					temperature = <80000>;
 					hysteresis = <1000>;
 					type = "passive";
 				};
+				control: trip-point@1 {
+					temperature = <90000>;
+					hysteresis = <1000>;
+					type = "passive";
+				};
 				hot: trip-point@2 {
-					temperature = <85000>;
+					temperature = <100000>;
 					hysteresis = <5000>;
 					type = "hot";
 				};
