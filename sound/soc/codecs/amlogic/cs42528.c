@@ -615,6 +615,15 @@ static int cs42528_i2c_remove(struct i2c_client *client)
 	return 0;
 }
 
+static void cs42528_i2c_shutdown(struct i2c_client *client)
+{
+
+	struct cs42528_priv *cs42528 = dev_get_drvdata(&client->dev);
+	struct cs42528_platform_data *pdata = cs42528->pdata;
+
+	gpio_direction_output(pdata->amp_pin, GPIOF_OUT_INIT_LOW);
+}
+
 static const struct i2c_device_id cs42528_i2c_id[] = {
 	{ "cs42528", 0 },
 	{}
@@ -634,6 +643,7 @@ static struct i2c_driver cs42528_i2c_driver = {
 	},
 	.probe = cs42528_i2c_probe,
 	.remove = cs42528_i2c_remove,
+	.shutdown = cs42528_i2c_shutdown,
 	.id_table = cs42528_i2c_id,
 };
 module_i2c_driver(cs42528_i2c_driver);
