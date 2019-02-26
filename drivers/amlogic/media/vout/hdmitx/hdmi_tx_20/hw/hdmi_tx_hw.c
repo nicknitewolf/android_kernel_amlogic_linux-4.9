@@ -3437,11 +3437,11 @@ static int hdmitx_cntl_ddc(struct hdmitx_dev *hdev, unsigned int cmd,
 			hdmitx_ddc_hw_op(DDC_MUX_DDC);
 			hdmitx_set_reg_bits(HDMITX_DWC_MC_CLKDIS, 1, 6, 1);
 			udelay(5);
-			hdmitx_set_reg_bits(HDMITX_DWC_HDCP22REG_CTRL, 3, 1, 2);
 			hdmitx_set_reg_bits(HDMITX_TOP_SW_RESET, 1, 5, 1);
 			udelay(10);
 			hdmitx_set_reg_bits(HDMITX_TOP_SW_RESET, 0, 5, 1);
 			udelay(10);
+			hdmitx_set_reg_bits(HDMITX_DWC_HDCP22REG_CTRL, 3, 1, 2);
 			hdmitx_wr_reg(HDMITX_DWC_HDCP22REG_MASK, 0);
 			hdmitx_wr_reg(HDMITX_DWC_HDCP22REG_MUTE, 0);
 			set_pkf_duk_nonce();
@@ -3468,8 +3468,13 @@ static int hdmitx_cntl_ddc(struct hdmitx_dev *hdev, unsigned int cmd,
 			hdmitx_hdcp_opr(5);
 			/* wait for start hdcp22app */
 		}
-		if (argv == HDCP22_OFF)
+		if (argv == HDCP22_OFF) {
 			hdmitx_hdcp_opr(6);
+			hdmitx_set_reg_bits(HDMITX_TOP_SW_RESET, 1, 5, 1);
+			udelay(10);
+			hdmitx_set_reg_bits(HDMITX_TOP_SW_RESET, 0, 5, 1);
+			udelay(10);
+		}
 		break;
 	case DDC_HDCP_GET_BKSV:
 		tmp_char = (unsigned char *) argv;
