@@ -476,7 +476,7 @@ static void spdifin_reg_set(void)
 	u32 period_44k = (period_data / 22 + 1) >> 1;	/* 44k min period */
 	u32 period_48k = (period_data / 24 + 1) >> 1;	/* 48k min period */
 	u32 period_96k = (period_data / 48 + 1) >> 1;	/* 96k min period */
-	u32 period_192k = (period_data / 96 + 1) >> 1;	/* 192k min period */
+	u32 period_192k = (period_data / 96) >> 1;	/* 192k min period */
 
 	pr_info("spdifin_reg_set: clk_rate=%d\n", clk_rate);
 
