@@ -1121,7 +1121,8 @@ unsigned char get_atmos_offset(unsigned char *p_edid)
 	do {
 		tag_data = p_edid[tag_offset];
 		if ((tag_data & 0xE0) == 0x20) {
-			rx_pr("audio_\n");
+			if (log_level & EDID_LOG)
+				rx_pr("audio_");
 			aud_length = tag_data & 0x1F;
 			break;
 		}
@@ -1148,7 +1149,8 @@ unsigned char rx_edid_update_atmos(unsigned char *p_edid)
 			p_edid[offset] = 1;
 		else
 			p_edid[offset] = 0;
-		rx_pr("offset = %d\n", offset);
+		if (log_level & EDID_LOG)
+			rx_pr("offset = %d\n", offset);
 	}
 	return 0;
 }
@@ -1841,11 +1843,11 @@ static void get_edid_vsdb(unsigned char *buff, unsigned char start,
 		}
 		/* 3d_multi_present: hdmi1.4 spec page155:
 		 * 0: neither structure or mask present,
-		 * 1: only 3D_Structure_ALL_15¡­0 is present
+		 * 1: only 3D_Structure_ALL_15Â¡Â­0 is present
 		 *    and assigns 3D formats to all of the
 		 *    VICs listed in the first 16 entries
 		 *    in the EDID
-		 * 2: 3D_Structure_ALL_15¡­0 and 3D_MASK_15¡­0
+		 * 2: 3D_Structure_ALL_15Â¡Â­0 and 3D_MASK_15Â¡Â­0
 		 *    are present and assign 3D formats to
 		 *    some of the VICs listed in the first
 		 *    16 entries in the EDID.
@@ -2417,7 +2419,7 @@ void rx_edid_parse_print(struct edid_info_s *edid_info)
 		/* Where a bit is set (=1), for the corresponding
 		 * VIC within the first 16 entries in the EDID,
 		 * the Sink indicates 3D support as designate
-		 * by the 3D_Structure_ALL_15¡­0 field.
+		 * by the 3D_Structure_ALL_15Â¡Â­0 field.
 		 */
 		rx_pr("General 3D format, on the SVDs below:\n");
 		for (i = 0; i < 16; i++) {
@@ -2668,4 +2670,17 @@ int rx_set_hdr_lumi(unsigned char *data, int len)
 	return true;
 }
 EXPORT_SYMBOL(rx_set_hdr_lumi);
+
+void rx_edid_physical_addr(int a, int b, int c, int d)
+{
+	tx_hpd_event = E_RCV;
+	up_phy_addr = ((d & 0xf) << 12) |
+		   ((c & 0xf) <<  8) |
+		   ((b & 0xf) <<  4) |
+		   ((a & 0xf) <<  0);
+
+	if (log_level & EDID_LOG)
+		rx_pr("\nup_phy_addr = %x\n", up_phy_addr);
+}
+EXPORT_SYMBOL(rx_edid_physical_addr);
 

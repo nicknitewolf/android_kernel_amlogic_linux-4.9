@@ -190,6 +190,7 @@ static int edid_update_delay = 150;
 int skip_frame_cnt = 1;
 static bool hdcp22_reauth_enable;
 unsigned int edid_update_flag;
+unsigned int downstream_hpd_flag;
 static bool hdcp22_stop_auth_enable;
 static bool hdcp22_esm_reset2_enable;
 int sm_pause;
@@ -1177,6 +1178,20 @@ void rx_dwc_reset(void)
 	hdmirx_packet_fifo_rst();
 }
 
+bool rx_hpd_keep_low(void)
+{
+	bool ret = false;
+
+	if (downstream_hpd_flag) {
+		if (hpd_wait_cnt <= hpd_wait_max*5)
+			ret = true;
+	} else {
+		if (hpd_wait_cnt <= hpd_wait_max)
+			ret = true;
+	}
+	return ret;
+}
+
 int rx_get_cur_hpd_sts(void)
 {
 	int tmp;
@@ -1554,8 +1569,8 @@ int rx_set_global_variable(const char *buf, int size)
 		return pr_var(wait_no_sig_max, index);
 	if (set_pr_var(tmpbuf, receive_edid_len, value, &index, ret))
 		return pr_var(receive_edid_len, index);
-	if (set_pr_var(tmpbuf, new_edid, value, &index, ret))
-		return pr_var(new_edid, index);
+	if (set_pr_var(tmpbuf, tx_hpd_event, value, &index, ret))
+		return pr_var(tx_hpd_event, index);
 	if (set_pr_var(tmpbuf, hdcp_array_len, value, &index, ret))
 		return pr_var(hdcp_array_len, index);
 	if (set_pr_var(tmpbuf, hdcp_len, value, &index, ret))
@@ -1717,7 +1732,7 @@ void rx_get_global_variable(const char *buf)
 	pr_var(clk_stable_max, i++);
 	pr_var(wait_no_sig_max, i++);
 	pr_var(receive_edid_len, i++);
-	pr_var(new_edid, i++);
+	pr_var(tx_hpd_event, i++);
 	pr_var(hdcp_array_len, i++);
 	pr_var(hdcp_len, i++);
 	pr_var(hdcp_repeat_depth, i++);
@@ -2009,7 +2024,6 @@ void rx_main_state_machine(void)
 			if (hpd_wait_cnt <= hpd_wait_max)
 				break;
 		}
-		hpd_wait_cnt = 0;
 		clk_unstable_cnt = 0;
 		esd_phy_rst_cnt = 0;
 		pre_port = rx.port;
@@ -2084,7 +2098,7 @@ void rx_main_state_machine(void)
 					rx.err_rec_mode = ERR_REC_HPD_RST;
 			} else if (rx.err_rec_mode == ERR_REC_HPD_RST) {
 				rx_set_cur_hpd(0);
-				rx.state = FSM_HPD_HIGH;
+				rx.state = FSM_INIT;
 				rx.err_rec_mode = ERR_REC_END;
 			} else {
 				rx.state = FSM_WAIT_CLK_STABLE;
@@ -2169,7 +2183,7 @@ void rx_main_state_machine(void)
 				hdmirx_hw_config();
 				hdmi_rx_top_edid_update();
 				rx_set_eq_run_state(E_EQ_START);
-				rx.state = FSM_HPD_HIGH;
+				rx.state = FSM_INIT;
 				if (hdcp22_on &&
 					(rx.hdcp.hdcp_version != HDCP_VER_14)) {
 					if (esm_recovery_mode ==
@@ -2182,7 +2196,7 @@ void rx_main_state_machine(void)
 				rx_set_eq_run_state(E_EQ_START);
 			} else if (rx.err_rec_mode == ERR_REC_HPD_RST) {
 				rx_set_cur_hpd(0);
-				rx.state = FSM_HPD_HIGH;
+				rx.state = FSM_INIT;
 				rx.err_rec_mode = ERR_REC_END;
 			} else
 				rx.err_code = ERR_DE_UNSTABLE;
@@ -2498,7 +2512,7 @@ void rx_main_state_machine(void)
 					sig_unstable_reset_hpd_cnt++;
 					if (sig_unstable_reset_hpd_cnt >=
 						sig_unstable_reset_hpd_max) {
-						rx.state = FSM_HPD_HIGH;
+						rx.state = FSM_INIT;
 						rx_set_cur_hpd(0);
 						sig_unstable_reset_hpd_cnt = 0;
 						rx_pr(
@@ -2989,12 +3003,34 @@ int hdmirx_debug(const char *buf, int size)
 	return 0;
 }
 
+void rx_dw_edid_monitor(void)
+{
+	if (!hdmi_cec_en)
+		return;
+	if (tx_hpd_event == E_RCV) {
+		if (rx.open_fg)
+			fsm_restart();
+		rx_set_port_hpd(ALL_PORTS, 0);
+		hdmi_rx_top_edid_update();
+		hpd_wait_cnt = 0;
+		tx_hpd_event = E_EXE;
+	} else if (tx_hpd_event == E_EXE) {
+		if (!rx.open_fg)
+			hpd_wait_cnt++;
+		if (!rx_hpd_keep_low()) {
+			rx_set_port_hpd(ALL_PORTS, 1);
+			tx_hpd_event = E_IDLE;
+		}
+	}
+}
+
 void hdmirx_timer_handler(unsigned long arg)
 {
 	struct hdmirx_dev_s *devp = (struct hdmirx_dev_s *)arg;
 
 	rx_5v_monitor();
 	rx_check_repeat();
+	rx_dw_edid_monitor();
 	if (rx.open_fg) {
 		if (!sm_pause)
 			rx_main_state_machine();

@@ -47,7 +47,7 @@ static unsigned char receive_edid[MAX_RECEIVE_EDID];
 int receive_edid_len = MAX_RECEIVE_EDID;
 MODULE_PARM_DESC(receive_edid, "\n receive_edid\n");
 module_param_array(receive_edid, byte, &receive_edid_len, 0664);
-bool new_edid;
+int tx_hpd_event;
 /*original bksv from device*/
 static unsigned char receive_hdcp[MAX_KSV_LIST_SIZE];
 int hdcp_array_len = MAX_KSV_LIST_SIZE;
@@ -103,23 +103,6 @@ bool hdmirx_is_key_write(void)
 void rx_check_repeat(void)
 {
 	if (!hdmirx_repeat_support()) {
-		if (rx.hdcp.repeat != repeat_plug) {
-			rx.hdcp.repeat = repeat_plug;
-			if (!repeat_plug) {
-				memset(&receive_edid, 0, sizeof(receive_edid));
-				up_phy_addr = 0;
-				new_edid = true;
-			}
-			if (rx.open_fg)
-				rx_set_cur_hpd(0);
-		}
-
-		if (new_edid) {
-			hdmi_rx_top_edid_update();
-			if (rx.open_fg)
-				rx_send_hpd_pulse();
-			new_edid = 0;
-		}
 		return;
 	}
 
@@ -131,16 +114,16 @@ void rx_check_repeat(void)
 			rx.hdcp.dev_exceed = 0;
 			rx.hdcp.cascade_exceed = 0;
 			memset(&receive_hdcp, 0, sizeof(receive_hdcp));
-			new_edid = true;
+			tx_hpd_event = true;
 			memset(&receive_edid, 0, sizeof(receive_edid));
 			rx_send_hpd_pulse();
 		}
 	}
-	if (new_edid) {
+	if (tx_hpd_event) {
 		/*check downstream plug when new plug occur*/
 		/*check receive change*/
 		hdmi_rx_top_edid_update();
-		new_edid = false;
+		tx_hpd_event = false;
 		rx_send_hpd_pulse();
 	}
 	if (repeat_plug) {
@@ -215,7 +198,7 @@ int rx_set_receiver_edid(unsigned char *data, int len)
 	memset(receive_edid, 0, sizeof(receive_edid));
 	if ((len > 0) && (*data != 0))
 		memcpy(receive_edid, data, len);
-	new_edid = true;
+	tx_hpd_event = 2;
 	return true;
 }
 EXPORT_SYMBOL(rx_set_receiver_edid);
@@ -354,15 +337,4 @@ void rx_repeat_hdcp_ver(int version)
 
 }
 EXPORT_SYMBOL(rx_repeat_hdcp_ver);
-
-void rx_edid_physical_addr(int a, int b, int c, int d)
-{
-	if (!hdmirx_repeat_support()) {
-		up_phy_addr = ((d & 0xf) << 12)  | ((c & 0xf) << 8) | ((b &
-		0xf) << 4) | (a & 0xf);
-		new_edid = true;
-	}
-}
-EXPORT_SYMBOL(rx_edid_physical_addr);
-
 
