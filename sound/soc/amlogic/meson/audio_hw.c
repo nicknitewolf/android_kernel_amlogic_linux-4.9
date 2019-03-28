@@ -478,7 +478,7 @@ static void spdifin_reg_set(void)
 	u32 period_96k = (period_data / 48 + 1) >> 1;	/* 96k min period */
 	u32 period_192k = (period_data / 96) >> 1;	/* 192k min period */
 
-	pr_info("spdifin_reg_set: clk_rate=%d\n", clk_rate);
+	//pr_info("spdifin_reg_set: clk_rate=%d\n", clk_rate);
 
 	aml_audin_write(AUDIN_SPDIF_MODE,
 		       (aml_audin_read(AUDIN_SPDIF_MODE) & 0x7fffc000) |
