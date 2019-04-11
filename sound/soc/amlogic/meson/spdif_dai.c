@@ -169,7 +169,7 @@ static int aml_dai_spdif_trigger(struct snd_pcm_substream *substream, int cmd,
 			pr_info("aiu 958 playback enable\n");
 			audio_hw_958_enable(1);
 		} else {
-			pr_info("spdif in capture enable\n");
+			//pr_info("spdif in capture enable\n");
 			audio_in_spdif_enable(1);
 		}
 		break;
@@ -180,7 +180,7 @@ static int aml_dai_spdif_trigger(struct snd_pcm_substream *substream, int cmd,
 			pr_info("aiu 958 playback disable\n");
 			audio_hw_958_enable(0);
 		} else {
-			pr_info("spdif in capture disable\n");
+			//pr_info("spdif in capture disable\n");
 			audio_in_spdif_enable(0);
 		}
 		break;

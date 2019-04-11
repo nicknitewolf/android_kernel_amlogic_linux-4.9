@@ -30,7 +30,7 @@ struct reg_default cs42528_reg_defaults[] = {
 	{ 0x04, 0x40 },	/* Interface Formats */
 	{ 0x05, 0x80 },	/* Misc Control */
 	{ 0x06, 0x02 },	/* Clock Control */
-	{ 0x0D, 0x28 },	/* Volume Control */
+	{ 0x0D, 0x20 },	/* Volume Control */
 	{ 0x0E, 0xff },	/* Channel Mute */
 	{ 0x0F, 0x00 },	/* Volume Control A1 */
 	{ 0x10, 0x00 },	/* Volume Control B1 */
@@ -60,7 +60,7 @@ static int cs42528_reg_table[CS42528_REG_COUNT][2] = {
 	{ 0x04, 0x40 },	/* Interface Formats */
 	{ 0x05, 0x80 },	/* Misc Control */
 	{ 0x06, 0x02 },	/* Clock Control */
-	{ 0x0D, 0x28 },	/* Volume Control */
+	{ 0x0D, 0x20 },	/* Volume Control */
 	{ 0x0E, 0xff },	/* Channel Mute */
 	{ 0x0F, 0x00 },	/* Volume Control A1 */
 	{ 0x10, 0x00 },	/* Volume Control B1 */
@@ -96,6 +96,7 @@ struct cs42528_priv {
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	struct early_suspend early_suspend;
 #endif
+	int amp_muted;
 };
 
 /* -127dB to 0dB with step of 0.5dB */
@@ -385,22 +386,24 @@ static int reset_cs42528(struct snd_soc_codec *codec)
 	return 0;
 }
 
-static int Enable_Amp(struct snd_soc_codec *codec, int enable)
+static int Enable_Amp(struct snd_soc_codec *codec, int mute)
 {
 	struct cs42528_priv *cs42528 = snd_soc_codec_get_drvdata(codec);
 	struct cs42528_platform_data *pdata = cs42528->pdata;
 
 	if (pdata->amp_pin > 0) {
-		if (enable == 1) {
+		if (mute && !cs42528->amp_muted) {
+			cs42528->amp_muted = 1;
 			gpio_direction_output(pdata->amp_pin,
 				GPIOF_OUT_INIT_LOW);
-			pr_info("%s %d set GPIO amp pin low!\n",
-				__func__, __LINE__);
-		} else {
+			//pr_info("%s %d set GPIO amp pin low!\n",
+			//	__func__, __LINE__);
+		} else if (!mute && cs42528->amp_muted) {
+			cs42528->amp_muted = 0;
 			gpio_direction_output(pdata->amp_pin,
 				GPIOF_OUT_INIT_HIGH);
-			pr_info("%s %d set GPIO amp pin high!\n",
-				__func__, __LINE__);
+			//pr_info("%s %d set GPIO amp pin high!\n",
+			//	__func__, __LINE__);
 		}
 	}
 	return 0;

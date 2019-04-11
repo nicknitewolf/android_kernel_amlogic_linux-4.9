@@ -34,7 +34,7 @@
 /* timerbase resolution: 00: 1us; 01: 10us; 10: 100us; 11: 1ms*/
 #define TIMERD_RESOLUTION       0x1
 /* timer count: 16bits*/
-#define TIMER_COUNT             100
+#define TIMER_COUNT             300
 
 struct audio_stream {
 	int stream_id;
@@ -88,6 +88,7 @@ struct aml_runtime_data {
 	void *buf; /* tmp buffer for playback or capture */
 	int active;
 	unsigned int xrun_num;
+	int timer_init;
 
 	/* hrtimer */
 	struct hrtimer hrtimer;
