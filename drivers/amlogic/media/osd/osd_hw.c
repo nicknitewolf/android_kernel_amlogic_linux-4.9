@@ -952,7 +952,8 @@ static int sync_render_single_fence(u32 index, u32 yres,
 	mutex_unlock(&post_fence_list_lock);
 	kthread_queue_work(&buffer_toggle_worker, &buffer_toggle_work);
 	request->out_fen_fd = out_fence_fd;
-	__close_fd(current->files, request->in_fen_fd);
+	if (request->in_fen_fd >= 0)
+		__close_fd(current->files, request->in_fen_fd);
 	return out_fence_fd;
 }
 
@@ -1006,7 +1007,8 @@ static int sync_render_layers_fence(u32 index, u32 yres,
 		fence_map->layer_map[index].in_fd,
 		fence_map->layer_map[index].out_fd);
 	request->out_fen_fd = out_fence_fd;
-	__close_fd(current->files, in_fence_fd);
+	if (in_fence_fd >= 0)
+		__close_fd(current->files, in_fence_fd);
 	return out_fence_fd;
 }
 
@@ -1738,8 +1740,16 @@ void osd_wait_vsync_hw(void)
 
 		if (pxp_mode)
 			timeout = msecs_to_jiffies(50);
-		else
-		timeout = msecs_to_jiffies(1000);
+		else {
+			struct vinfo_s *vinfo;
+
+			vinfo = get_current_vinfo();
+			if (vinfo && (!strcmp(vinfo->name, "invalid") ||
+				!strcmp(vinfo->name, "null"))) {
+				timeout = msecs_to_jiffies(1);
+			} else
+				timeout = msecs_to_jiffies(1000);
+		}
 		wait_event_interruptible_timeout(
 				osd_vsync_wq, vsync_hit, timeout);
 	}
@@ -3548,6 +3558,14 @@ static void osd_pan_display_single_fence(struct osd_fence_map_s *fence_map)
 
 	if (index >= OSD2)
 		goto out;
+	vinfo = get_current_vinfo();
+	if (vinfo && (!strcmp(vinfo->name, "invalid") ||
+			!strcmp(vinfo->name, "null")))
+		goto out;
+
+	osd_hw.vinfo_width = vinfo->width;
+	osd_hw.vinfo_height = vinfo->height;
+
 	if (timeline_created) { /* out fence created success. */
 		ret = osd_wait_buf_ready(fence_map);
 		if (ret < 0)
@@ -3568,11 +3586,6 @@ static void osd_pan_display_single_fence(struct osd_fence_map_s *fence_map)
 			osd_hw.osd_afbcd[index].inter_format =
 				 AFBC_EN | BLOCK_SPLIT |
 				 YUV_TRANSFORM | SUPER_BLOCK_ASPECT;
-		}
-		vinfo = get_current_vinfo();
-		if (vinfo) {
-			osd_hw.vinfo_width = vinfo->width;
-			osd_hw.vinfo_height = vinfo->height;
 		}
 		/* Todo: */
 		if (fence_map->ext_addr && fence_map->width
@@ -3763,17 +3776,17 @@ static void osd_pan_display_single_fence(struct osd_fence_map_s *fence_map)
 			osd_wait_vsync_hw();
 		}
 	}
+#ifdef CONFIG_AMLOGIC_MEDIA_FB_EXT
+		if (ret)
+			osd_ext_clone_pan(index);
+#endif
+out:
 	if (timeline_created) {
 		if (ret)
 			osd_timeline_increase();
 		else
 			osd_log_err("------NOT signal out_fence ERROR\n");
 	}
-#ifdef CONFIG_AMLOGIC_MEDIA_FB_EXT
-	if (ret)
-		osd_ext_clone_pan(index);
-#endif
-out:
 	if (fence_map->in_fence)
 		osd_put_fenceobj(fence_map->in_fence);
 
@@ -8440,9 +8453,9 @@ void osd_page_flip(struct osd_plane_map_s *plane_map)
 
 	osd_enable = (plane_map->enable & 1) ? ENABLE : DISABLE;
 	vinfo = get_current_vinfo();
-	if (vinfo) {
-		osd_hw.vinfo_width = vinfo->width;
-		osd_hw.vinfo_height = vinfo->height;
+	if (vinfo && (!strcmp(vinfo->name, "invalid") ||
+				!strcmp(vinfo->name, "null"))) {
+		return;
 	}
 	osd_hw.osd_afbcd[index].enable =
 		(plane_map->afbc_inter_format & AFBC_EN) >> 31;
