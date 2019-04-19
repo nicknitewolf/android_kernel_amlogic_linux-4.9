@@ -479,6 +479,8 @@ static int userfaultfd_release(struct inode *inode, struct file *file)
 	 * taking the mmap_sem for writing.
 	 */
 	down_write(&mm->mmap_sem);
+	if (!mmget_still_valid(mm))
+		goto skip_mm;
 	prev = NULL;
 	for (vma = mm->mmap; vma; vma = vma->vm_next) {
 		cond_resched();
@@ -502,6 +504,7 @@ static int userfaultfd_release(struct inode *inode, struct file *file)
 		vma->vm_flags = new_flags;
 		vma->vm_userfaultfd_ctx = NULL_VM_UFFD_CTX;
 	}
+skip_mm:
 	up_write(&mm->mmap_sem);
 	mmput(mm);
 wakeup:
@@ -803,6 +806,15 @@ static int userfaultfd_register(struct userfaultfd_ctx *ctx,
 		goto out;
 
 	down_write(&mm->mmap_sem);
+<<<<<<< HEAD
+=======
+	if (!mmget_still_valid(mm))
+		goto out_unlock;
+<<<<<<< HEAD
+
+=======
+>>>>>>> 42d4a9532097 (coredump: fix race condition between mmget_not_zero()/get_task_mm() and core dumping)
+>>>>>>> 263a807b41ad (coredump: fix race condition between mmget_not_zero()/get_task_mm() and core dumping)
 	vma = find_vma_prev(mm, start, &prev);
 	if (!vma)
 		goto out_unlock;
@@ -949,6 +961,15 @@ static int userfaultfd_unregister(struct userfaultfd_ctx *ctx,
 		goto out;
 
 	down_write(&mm->mmap_sem);
+<<<<<<< HEAD
+=======
+	if (!mmget_still_valid(mm))
+		goto out_unlock;
+<<<<<<< HEAD
+
+=======
+>>>>>>> 42d4a9532097 (coredump: fix race condition between mmget_not_zero()/get_task_mm() and core dumping)
+>>>>>>> 263a807b41ad (coredump: fix race condition between mmget_not_zero()/get_task_mm() and core dumping)
 	vma = find_vma_prev(mm, start, &prev);
 	if (!vma)
 		goto out_unlock;
