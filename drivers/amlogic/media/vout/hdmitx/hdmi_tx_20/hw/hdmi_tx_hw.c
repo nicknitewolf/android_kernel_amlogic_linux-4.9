@@ -595,33 +595,37 @@ void HDMITX_Meson_Init(struct hdmitx_dev *hdev)
 
 static irqreturn_t intr_handler(int irq, void *dev)
 {
-	unsigned int data32 = 0;
+	/* get interrupt status */
+	unsigned int dat_top = hdmitx_rd_reg(HDMITX_TOP_INTR_STAT);
+	unsigned int dat_dwc = hdmitx_rd_reg(HDMITX_DWC_HDCP22REG_STAT);
 	struct hdmitx_dev *hdev = (struct hdmitx_dev *)dev;
 
-	/* get interrupt status */
-	data32 = hdmitx_rd_reg(HDMITX_TOP_INTR_STAT);
-	pr_info(HW "irq %x\n", data32);
+	/* ack INTERNAL_INTR or else we stuck with no interrupts at all */
+	hdmitx_wr_reg(HDMITX_TOP_INTR_STAT_CLR, ~0);
+	hdmitx_wr_reg(HDMITX_DWC_HDCP22REG_STAT, 0xff);
+
+	pr_info(SYS "irq %x %x\n", dat_top, dat_dwc);
+
 	if (hdev->hpd_lock == 1) {
-		hdmitx_wr_reg(HDMITX_TOP_INTR_STAT_CLR, 0xf);
 		pr_info(HW "HDMI hpd locked\n");
 		goto next;
 	}
 	/* check HPD status */
-	if ((data32 & (1 << 1)) && (data32 & (1 << 2))) {
+	if ((dat_top & (1 << 1)) && (dat_top & (1 << 2))) {
 		if (hdmitx_hpd_hw_op(HPD_READ_HPD_GPIO))
-			data32 &= ~(1 << 2);
+			dat_top &= ~(1 << 2);
 		else
-			data32 &= ~(1 << 1);
+			dat_top &= ~(1 << 1);
 	}
 	/* HPD rising */
-	if (data32 & (1 << 1)) {
+	if (dat_top & (1 << 1)) {
 		hdev->hdmitx_event |= HDMI_TX_HPD_PLUGIN;
 		hdev->hdmitx_event &= ~HDMI_TX_HPD_PLUGOUT;
 		queue_delayed_work(hdev->hdmi_wq,
 			&hdev->work_hpd_plugin, HZ / 2);
 	}
 	/* HPD falling */
-	if (data32 & (1 << 2)) {
+	if (dat_top & (1 << 2)) {
 		queue_delayed_work(hdev->hdmi_wq,
 			&hdev->work_aud_hpd_plug, 2 * HZ);
 		hdev->hdmitx_event |= HDMI_TX_HPD_PLUGOUT;
@@ -629,21 +633,19 @@ static irqreturn_t intr_handler(int irq, void *dev)
 		queue_delayed_work(hdev->hdmi_wq,
 			&hdev->work_hpd_plugout, HZ / 20);
 	}
-next:
 	/* internal interrupt */
-	if (data32 & (1 << 0)) {
+	if (dat_top & (1 << 0)) {
 		hdev->hdmitx_event |= HDMI_TX_INTERNAL_INTR;
-		queue_work(hdev->hdmi_wq, &hdev->work_internal_intr);
+		queue_delayed_work(hdev->hdmi_wq,
+			&hdev->work_internal_intr, HZ / 10);
 	}
-	if (data32 & (1 << 3)) {
+	if (dat_top & (1 << 3)) {
 		unsigned int rd_nonce_mode =
 			hdmitx_rd_reg(HDMITX_TOP_SKP_CNTL_STAT) & 0x1;
 		pr_info(HW "hdcp22: Nonce %s  Vld: %d\n",
 			rd_nonce_mode ? "HW" : "SW",
 			((hdmitx_rd_reg(HDMITX_TOP_SKP_CNTL_STAT) >> 31) & 1));
-		if (rd_nonce_mode)
-			hdmitx_wr_reg(HDMITX_TOP_INTR_STAT_CLR, (1 << 3));
-		else {
+		if (!rd_nonce_mode) {
 			hdmitx_wr_reg(HDMITX_TOP_NONCE_0,  0x32107654);
 			hdmitx_wr_reg(HDMITX_TOP_NONCE_1,  0xba98fedc);
 			hdmitx_wr_reg(HDMITX_TOP_NONCE_2,  0xcdef89ab);
@@ -654,13 +656,10 @@ next:
 			hdmitx_wr_reg(HDMITX_TOP_NONCE_3,  0x01234567);
 		}
 	}
-	if (data32 & (1 << 30)) {
-		pr_info(HW "hdcp22: reg stat: 0x%x\n",
-			hdmitx_rd_reg(HDMITX_DWC_HDCP22REG_STAT));
-		hdmitx_wr_reg(HDMITX_DWC_HDCP22REG_STAT, 0xff);
-	}
-	/* ack INTERNAL_INTR or else we stuck with no interrupts at all */
-	hdmitx_wr_reg(HDMITX_TOP_INTR_STAT_CLR, data32 | 0x7);
+	if (dat_top & (1 << 30))
+		pr_info("hdcp22: reg stat: 0x%x\n", dat_dwc);
+
+next:
 	return IRQ_HANDLED;
 }
 
@@ -2649,11 +2648,9 @@ do { \
 
 #define DUMP_HDMITXREG_SECTION(start, end) \
 do { \
-	if (start > end) { \
-		pr_info("Error start = 0x%lx > end = 0x%lx\n", start, end); \
+	if (start > end) \
 		break; \
-	} \
-	pr_info("Start = 0x%lx   End = 0x%lx\n", start, end); \
+\
 	for (addr = start; addr < end + 1; addr++) { \
 		val = hdmitx_rd_reg(addr); \
 		if (val) \
@@ -2665,7 +2662,12 @@ static void hdmitx_dump_intr(void)
 {
 	unsigned int addr = 0, val = 0;
 
-	DUMP_HDMITXREG_SECTION(HDMITX_DWC_IH_FC_STAT0, HDMITX_DWC_IH_MUTE);
+	DUMP_HDMITXREG_SECTION(HDMITX_DWC_IH_FC_STAT0,
+		HDMITX_DWC_IH_I2CMPHY_STAT0);
+	DUMP_HDMITXREG_SECTION(HDMITX_DWC_IH_DECODE, HDMITX_DWC_IH_DECODE);
+	DUMP_HDMITXREG_SECTION(HDMITX_DWC_IH_MUTE_FC_STAT0,
+		HDMITX_DWC_IH_MUTE_I2CMPHY_STAT0);
+	DUMP_HDMITXREG_SECTION(HDMITX_DWC_IH_MUTE, HDMITX_DWC_IH_MUTE);
 }
 
 static void mode420_half_horizontal_para(void)
