@@ -46,7 +46,7 @@
  *
  *
  */
-#define RX_VER2 "ver.2018/11/22"
+#define RX_VER2 "ver.2019/03/22"
 
 /*print type*/
 #define	LOG_EN		0x01
@@ -57,6 +57,7 @@
 #define EQ_LOG		0x20
 #define REG_LOG		0x40
 #define ERR_LOG		0x80
+#define EDID_LOG	0x100
 #define VSI_LOG		0x800
 
 /* 50ms timer for hdmirx main loop (HDMI_STATE_CHECK_FREQ is 20) */

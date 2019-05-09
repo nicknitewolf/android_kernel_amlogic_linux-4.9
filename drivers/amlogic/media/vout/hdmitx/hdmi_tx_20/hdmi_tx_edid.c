@@ -1158,8 +1158,7 @@ int Edid_ParsingCEADataBlockCollection(struct hdmitx_dev *hdmitx_device,
 
 		case AUDIO_TAG:
 			len = (Data & 0x1f) + 1;
-			if (hdmitx_device->basic_audio)
-				rx_set_receiver_edid(&buff[AddrTag], len);
+			rx_set_receiver_edid(&buff[AddrTag], len);
 			for (pos = 0, i = 0; i < len; i++)
 				pos += sprintf(rptx_edid_buf+pos, "%02x",
 					buff[AddrTag + i]);

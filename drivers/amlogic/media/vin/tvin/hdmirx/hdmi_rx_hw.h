@@ -19,6 +19,8 @@
 #define __HDMI_RX_HW_H__
 
 
+#define K_TEST_CHK_ERR_CNT
+
 /**
  * Bit field mask
  * @param m	width

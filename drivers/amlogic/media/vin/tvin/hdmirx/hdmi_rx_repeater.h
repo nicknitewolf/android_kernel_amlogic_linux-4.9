@@ -46,7 +46,7 @@ enum repeater_state_e {
 };
 
 extern int receive_edid_len;
-extern bool new_edid;
+extern int tx_hpd_event;
 extern int hdcp_array_len;
 extern int hdcp_len;
 extern int hdcp_repeat_depth;

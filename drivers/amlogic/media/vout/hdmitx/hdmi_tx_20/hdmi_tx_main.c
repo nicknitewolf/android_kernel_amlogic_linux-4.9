@@ -3017,7 +3017,7 @@ static void hdmitx_get_edid(struct hdmitx_dev *hdev)
 		hdev->HWOp.CntlDDC(hdev, DDC_EDID_READ_DATA, 0);
 		hdev->HWOp.CntlDDC(hdev, DDC_EDID_GET_DATA, 1);
 	}
-	hdmitx_edid_clear(hdev);
+	/* hdmitx_edid_clear(hdev); */
 	hdmitx_edid_parse(hdev);
 	hdmitx_edid_buf_compare_print(hdev);
 	mutex_unlock(&getedid_mutex);
