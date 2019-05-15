@@ -154,6 +154,22 @@ static struct snd_pcm_hw_constraint_list hw_constraints_period_sizes = {
 	.mask = 0
 };
 
+static struct spdif_i2s_rate_measure {
+	spinlock_t lock;
+	struct timer_list timer;
+
+	int started;
+	unsigned int input_sr;
+	/* period fields */
+	unsigned int interval;
+	unsigned int input_data_cnt;
+	unsigned int output_data_cnt;
+
+	/* exported fields */
+	/*input SR is golden, output clock drift w.r.t. 48K*/
+	int output_freq_offset;
+	int output_bytes_offset; /* cumulative offset*/
+} measure;
 /*--------------------------------------------------------------------------
  *--------------------------------------------------------------------------
  * Helper functions
@@ -315,6 +331,43 @@ static int aml_i2s_hw_free(struct snd_pcm_substream *substream)
 	return 0;
 }
 
+static void aml_i2s_measure_callback(unsigned long data)
+{
+	int sro = 48000;
+	int byte_output = 0;
+	unsigned long flags;
+
+	spin_lock_irqsave(&measure.lock, flags);
+	if (!measure.started) {
+		spin_unlock_irqrestore(&measure.lock, flags);
+		return;
+	}
+	/* freq offset */
+	if (measure.input_data_cnt) {
+		sro = (long long)measure.output_data_cnt/4 *
+			measure.input_sr / measure.input_data_cnt;
+		//pr_info("szhao oc:%d ic:%d,isr:%d sro:%d\n",
+		//		measure.output_data_cnt,
+		//		measure.input_data_cnt, measure.input_sr, sro);
+	}
+	measure.output_freq_offset = sro - 48000;
+
+	if (measure.input_sr) {
+		byte_output = ((long long)measure.input_data_cnt * 4 * 480) /
+			(measure.input_sr/100);
+		measure.output_bytes_offset +=
+			(byte_output - measure.output_data_cnt);
+	}
+
+	measure.input_data_cnt = 0;
+	measure.output_data_cnt = 0;
+	mod_timer(&measure.timer, jiffies + HZ*measure.interval);
+	spin_unlock_irqrestore(&measure.lock, flags);
+	//pr_info("szhao %s o_f:%d o_b:%d\n", __func__,
+	//		measure.output_freq_offset,
+	//		measure.output_bytes_offset);
+}
+
 static int aml_i2s_prepare(struct snd_pcm_substream *substream)
 {
 
@@ -473,6 +526,56 @@ static enum hrtimer_restart aml_i2s_hrtimer_callback(struct hrtimer *timer)
 
 #endif
 
+static void measure_update_input(unsigned int size)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&measure.lock, flags);
+	if (measure.started)
+		measure.input_data_cnt += size;
+	spin_unlock_irqrestore(&measure.lock, flags);
+}
+
+static void measure_update_output(unsigned int size)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&measure.lock, flags);
+	if (measure.started)
+		measure.output_data_cnt += size;
+	spin_unlock_irqrestore(&measure.lock, flags);
+}
+
+static int start_measure(void)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&measure.lock, flags);
+	if (measure.interval) {
+		measure.output_freq_offset = 0x0FFFFFFF;
+		measure.output_bytes_offset = 0;
+		measure.input_data_cnt = 0;
+		measure.output_data_cnt = 0;
+		mod_timer(&measure.timer, jiffies + HZ*measure.interval);
+		measure.started = 1;
+	}
+	spin_unlock_irqrestore(&measure.lock, flags);
+	//pr_info("measure timer expire: %lu HZ:%d inter:%d\n",
+	//		measure.timer.expires, HZ, measure.interval);
+	return 0;
+}
+
+static int stop_measure(void)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&measure.lock, flags);
+	measure.started = 0;
+	spin_unlock_irqrestore(&measure.lock, flags);
+
+	return 0;
+}
+
 static void start_timer(struct aml_runtime_data *prtd)
 {
 	unsigned long flags = 0;
@@ -558,14 +661,19 @@ static int aml_i2s_trigger(struct snd_pcm_substream *substream, int cmd)
 			start_hw_timer(prtd);
 		else
 			start_timer(prtd);
+		if (s->device_type == AML_AUDIO_I2SOUT)
+			start_measure();
 		break;		/* SNDRV_PCM_TRIGGER_START */
 	case SNDRV_PCM_TRIGGER_SUSPEND:
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
 	case SNDRV_PCM_TRIGGER_STOP:
-		if (s->device_type == AML_AUDIO_SPDIFIN)
+		if (s->device_type == AML_AUDIO_SPDIFIN) {
 			stop_hw_timer(prtd);
-		else
+		} else {
 			stop_timer(prtd);
+			if (s->device_type == AML_AUDIO_I2SOUT)
+				stop_measure();
+        }
 		break;
 	default:
 		ret = -EINVAL;
@@ -648,6 +756,8 @@ static void aml_i2s_timer_callback(unsigned long data)
 		} else {
 			size = last_ptr - (s->last_ptr);
 		}
+		if (s->device_type == AML_AUDIO_I2SOUT)
+			measure_update_output(size);
 		s->last_ptr = last_ptr;
 		s->size += bytes_to_frames(substream->runtime, size);
 		if (s->size >= runtime->period_size) {
@@ -675,6 +785,8 @@ static void aml_i2s_timer_callback(unsigned long data)
 					(last_ptr - (s->last_ptr));
 #endif
 			prtd->xrun_num = 0;
+			if(s->device_type == AML_AUDIO_SPDIFIN)
+				measure_update_input(size);
 		} else if (last_ptr == s->last_ptr) {
 			if (s->device_type == AML_AUDIO_SPDIFIN) {
 				/* timeout ASAP */
@@ -694,6 +806,8 @@ static void aml_i2s_timer_callback(unsigned long data)
 				size = last_ptr - (s->last_ptr);
 #endif
 			prtd->xrun_num = 0;
+			if(s->device_type == AML_AUDIO_SPDIFIN)
+				measure_update_input(size);
 		}
 
 		s->last_ptr = last_ptr;
@@ -762,7 +876,13 @@ static int aml_i2s_open(struct snd_pcm_substream *substream)
 	}
 
 	spin_lock_init(&prtd->timer_lock);
-
+	if (s->device_type == AML_AUDIO_I2SOUT) {
+		spin_lock_init(&measure.lock);
+		init_timer(&measure.timer);
+		measure.timer.function = &aml_i2s_measure_callback;
+		measure.timer.expires = jiffies;
+		measure.timer.data = 0;
+	}
  out:
 	return ret;
 }
@@ -780,6 +900,10 @@ static int aml_i2s_close(struct snd_pcm_substream *substream)
 			snd_free_hw_timer_irq(prtd);
 	}
 
+	if (s->device_type == AML_AUDIO_I2SOUT) {
+		measure.started = 0;
+		del_timer(&measure.timer);
+	}
 	kfree(prtd);
 	prtd = NULL;
 
@@ -1379,6 +1503,65 @@ static int aml_audio_get_i2s_mute(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+static int snd_ctl_int_stereo_info(struct snd_kcontrol *kcontrol,
+                struct snd_ctl_elem_info *uinfo)
+{
+	uinfo->type = SNDRV_CTL_ELEM_TYPE_INTEGER;
+	uinfo->count = 2;
+	uinfo->value.integer.min = INT_MIN;
+	uinfo->value.integer.max = INT_MAX;
+	return 0;
+}
+
+static int i2s_measure_get(struct snd_kcontrol *kcontrol,
+		struct snd_ctl_elem_value *ucontrol)
+{
+	unsigned long flags;
+	spin_lock_irqsave(&measure.lock, flags);
+
+	ucontrol->value.integer.value[0] = measure.input_sr;
+	ucontrol->value.integer.value[1] = measure.interval;
+	spin_unlock_irqrestore(&measure.lock, flags);
+	return 0;
+}
+
+static int i2s_measure_set(struct snd_kcontrol *kcontrol,
+		struct snd_ctl_elem_value *ucontrol)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&measure.lock, flags);
+	measure.input_sr = ucontrol->value.integer.value[0];
+	measure.interval = ucontrol->value.integer.value[1];
+	//pr_info("%s sr:%d interval:%d\n", __func__,
+	//		measure.input_sr,measure.interval);
+	spin_unlock_irqrestore(&measure.lock, flags);
+
+	start_measure();
+	return 0;
+}
+
+static int i2s_drift_get(struct snd_kcontrol *kcontrol,
+		struct snd_ctl_elem_value *ucontrol)
+{
+	unsigned long flags;
+	unsigned int offset_freq;
+	unsigned int offset_bytes;
+
+	spin_lock_irqsave(&measure.lock, flags);
+	if (measure.started) {
+		offset_freq = measure.output_freq_offset;
+		offset_bytes = measure.output_bytes_offset;
+	} else {
+		offset_freq = 0x0FFFFFFF;
+		offset_bytes = 0x0FFFFFFF;
+	}
+	ucontrol->value.integer.value[0] = offset_freq;
+	ucontrol->value.integer.value[1] = offset_bytes;
+	spin_unlock_irqrestore(&measure.lock, flags);
+	return 0;
+}
+
 static const struct snd_kcontrol_new aml_i2s_controls[] = {
 	SOC_SINGLE_BOOL_EXT("Audio i2s mute",
 				0, aml_audio_get_i2s_mute,
@@ -1388,6 +1571,14 @@ static const struct snd_kcontrol_new aml_i2s_controls[] = {
 				output_swap_enum,
 				aml_output_swap_get_enum,
 				aml_output_swap_set_enum),
+
+	{.iface = SNDRV_CTL_ELEM_IFACE_MIXER, .name = "SPDIF In Clock Measure",
+	 .info = snd_ctl_int_stereo_info,
+	 .get = i2s_measure_get, .put = i2s_measure_set},
+
+	{.iface = SNDRV_CTL_ELEM_IFACE_MIXER, .name = "I2S Drift",
+	 .info = snd_ctl_int_stereo_info,
+	 .get = i2s_drift_get},
 };
 
 static int aml_i2s_probe(struct snd_soc_platform *platform)

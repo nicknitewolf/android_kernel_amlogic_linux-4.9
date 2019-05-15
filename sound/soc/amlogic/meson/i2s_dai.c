@@ -49,6 +49,7 @@
 #include "spdif_dai.h"
 #include "dmic.h"
 
+#define MAX_PLL_ADJUSTMENT (1000000)
 static int i2s_clk_get(struct snd_kcontrol *kcontrol,
 					struct snd_ctl_elem_value *ucontrol)
 {
@@ -69,11 +70,11 @@ static int i2s_clk_set(struct snd_kcontrol *kcontrol,
 	unsigned long mclk_rate = p_i2s->mclk;
 	int value = ucontrol->value.enumerated.item[0];
 
-	if (value > 2000000 || value < 0) {
-		pr_err("Fine tdm clk setting range (0~2000000), %d\n", value);
+	if (value > MAX_PLL_ADJUSTMENT || value < -MAX_PLL_ADJUSTMENT) {
+		pr_err("Fine tdm clk setting range (-1e6~1e6), %d\n", value);
 		return 0;
 	}
-	mclk_rate += (value - 1000000);
+	mclk_rate += value;
 
 	ret = clk_set_rate(p_i2s->clk_mpll, mclk_rate * 10);
 	if (ret) {
@@ -91,11 +92,21 @@ static int i2s_clk_set(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+static int snd_ctl_int_single_info(struct snd_kcontrol *kcontrol,
+		struct snd_ctl_elem_info *uinfo)
+{
+	uinfo->type = SNDRV_CTL_ELEM_TYPE_INTEGER;
+	uinfo->count = 1;
+	uinfo->value.integer.min = -MAX_PLL_ADJUSTMENT;
+	uinfo->value.integer.max = MAX_PLL_ADJUSTMENT;
+	return 0;
+}
+
+
 static const struct snd_kcontrol_new snd_i2s_controls[] = {
-	SOC_SINGLE_EXT("TDM MCLK Fine Setting",
-				0, 0, 2000000, 0,
-				i2s_clk_get,
-				i2s_clk_set),
+	{.iface = SNDRV_CTL_ELEM_IFACE_MIXER, .name = "TDM MCLK Fine Setting",
+	 .info = snd_ctl_int_single_info,
+	 .get = i2s_clk_get, .put = i2s_clk_set},
 };
 
 static int aml_dai_i2s_probe(struct snd_soc_dai *dai)
@@ -291,12 +302,18 @@ static int aml_dai_i2s_prepare(struct snd_pcm_substream *substream,
 static int aml_dai_i2s_trigger(struct snd_pcm_substream *substream, int cmd,
 			       struct snd_soc_dai *dai)
 {
+	struct aml_i2s *i2s = snd_soc_dai_get_drvdata(dai);
+
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
 		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+			int mclk_rate;
+
 			pr_debug("I2S playback enable\n");
+			mclk_rate = i2s->old_samplerate * DEFAULT_MCLK_RATIO_SR;
+			aml_i2s_set_amclk(i2s, mclk_rate);
 			audio_out_i2s_enable(1);
 			if (IEC958_mode_codec == 0) {
 				pr_debug("IEC958 playback enable\n");
