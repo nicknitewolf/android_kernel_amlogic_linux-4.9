@@ -3924,6 +3924,8 @@ void vdin_set_drm_data(struct vdin_dev_s *devp,
 			vf->signal_type = ((1 << 8) |
 				(vf->signal_type & (~0xFF00)));
 		} else {
+			u32 tmp;
+
 			memcpy(vf_dp->primaries,
 				devp->prop.hdr_info.hdr_data.primaries,
 				sizeof(u32)*6);
@@ -3933,6 +3935,9 @@ void vdin_set_drm_data(struct vdin_dev_s *devp,
 			memcpy(vf_dp->luminance,
 				&devp->prop.hdr_info.hdr_data.master_lum,
 				sizeof(u32)*2);
+			tmp = vf_dp->luminance[0];
+			vf_dp->luminance[0] = vf_dp->luminance[1]*10000;
+			vf_dp->luminance[1] = tmp;
 			/* content_light_level */
 			vf_dp->content_light_level.max_content =
 				devp->prop.hdr_info.hdr_data.mcll;
