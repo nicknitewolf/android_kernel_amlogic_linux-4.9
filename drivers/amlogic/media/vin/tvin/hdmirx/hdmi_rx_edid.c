@@ -814,7 +814,7 @@ void rx_edid_update_audio_info(unsigned char *p_edid,
 }
 
 unsigned int rx_edid_cal_phy_addr(
-					u_int brepeat,
+					bool brepeat,
 					u_int up_addr,
 					u_int portmap,
 					u_char *pedid,
@@ -921,7 +921,7 @@ bool is_ddc_idle(unsigned char port_id)
 
 void rx_edid_fill_to_register(
 						u_char *pedid,
-						u_int brepeat,
+						bool brepeat,
 						u_int *pphy_addr,
 						u_char *pchecksum)
 {
@@ -1158,7 +1158,7 @@ unsigned char rx_edid_update_atmos(unsigned char *p_edid)
 unsigned int hdmi_rx_top_edid_update(void)
 {
 	int edid_index = rx_get_edid_index();
-	bool brepeat = true;
+	bool brepeat = hdmirx_repeat_support();
 	u_char *pedid_data;
 	u_int sts;
 	u_int phy_addr_offset;
@@ -1183,7 +1183,7 @@ unsigned int hdmi_rx_top_edid_update(void)
 	rx_edid_update_atmos(pedid_data);
 
 	/* caculate physical address and checksum */
-	sts = rx_edid_cal_phy_addr(brepeat,
+	sts = rx_edid_cal_phy_addr(true,
 					up_phy_addr, port_map,
 					pedid_data, &phy_addr_offset,
 					phy_addr);
@@ -1193,7 +1193,7 @@ unsigned int hdmi_rx_top_edid_update(void)
 	}
 
 	/* write edid to edid register */
-	rx_edid_fill_to_register(pedid_data, brepeat,
+	rx_edid_fill_to_register(pedid_data, true,
 							phy_addr, checksum);
 	if (sts) {
 		/* update physical and checksum */
