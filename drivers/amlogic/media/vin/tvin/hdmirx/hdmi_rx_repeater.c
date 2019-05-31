@@ -114,7 +114,7 @@ void rx_check_repeat(void)
 			rx.hdcp.dev_exceed = 0;
 			rx.hdcp.cascade_exceed = 0;
 			memset(&receive_hdcp, 0, sizeof(receive_hdcp));
-			tx_hpd_event = true;
+			tx_hpd_event = 1;
 			memset(&receive_edid, 0, sizeof(receive_edid));
 			rx_send_hpd_pulse();
 		}
@@ -123,7 +123,7 @@ void rx_check_repeat(void)
 		/*check downstream plug when new plug occur*/
 		/*check receive change*/
 		hdmi_rx_top_edid_update();
-		tx_hpd_event = false;
+		tx_hpd_event = 0;
 		rx_send_hpd_pulse();
 	}
 	if (repeat_plug) {
