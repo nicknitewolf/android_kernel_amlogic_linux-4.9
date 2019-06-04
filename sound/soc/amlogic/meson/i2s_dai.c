@@ -281,9 +281,15 @@ static int aml_dai_i2s_prepare(struct snd_pcm_substream *substream,
 			s->device_type = AML_AUDIO_I2SIN;
 		}
 	} else {
+		struct aml_i2s *i2s = snd_soc_dai_get_drvdata(dai);
+		int mclk_rate;
+
 		s->device_type = AML_AUDIO_I2SOUT;
 		audio_out_i2s_enable(0);
 		aml_hw_i2s_init(runtime);
+
+		mclk_rate = DEFAULT_SAMPLERATE * DEFAULT_MCLK_RATIO_SR;
+		aml_i2s_set_amclk(i2s, mclk_rate);
 		/* i2s/958 share the same audio hw buffer when PCM mode */
 		if (IEC958_mode_codec == 0) {
 			aml_hw_iec958_init(substream, 1);
@@ -302,18 +308,12 @@ static int aml_dai_i2s_prepare(struct snd_pcm_substream *substream,
 static int aml_dai_i2s_trigger(struct snd_pcm_substream *substream, int cmd,
 			       struct snd_soc_dai *dai)
 {
-	struct aml_i2s *i2s = snd_soc_dai_get_drvdata(dai);
-
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
 		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
-			int mclk_rate;
-
 			pr_debug("I2S playback enable\n");
-			mclk_rate = i2s->old_samplerate * DEFAULT_MCLK_RATIO_SR;
-			aml_i2s_set_amclk(i2s, mclk_rate);
 			audio_out_i2s_enable(1);
 			if (IEC958_mode_codec == 0) {
 				pr_debug("IEC958 playback enable\n");
