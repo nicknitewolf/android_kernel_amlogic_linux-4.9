@@ -129,11 +129,13 @@ static void hdmitx_early_suspend(struct early_suspend *h)
 	extcon_set_state_sync(hdmitx_extcon_power, EXTCON_DISP_HDMI, 0);
 	phdmi->HWOp.CntlConfig(&hdmitx_device, CONF_CLR_AVI_PACKET, 0);
 	phdmi->HWOp.CntlConfig(&hdmitx_device, CONF_CLR_VSDB_PACKET, 0);
+	#if 0
 	/*close vpu clk*/
 	if (phdmi->hdmitx_clk_tree.hdmi_clk_vapb != NULL)
 		clk_disable_unprepare(phdmi->hdmitx_clk_tree.hdmi_clk_vapb);
 	if (phdmi->hdmitx_clk_tree.hdmi_clk_vpu != NULL)
 		clk_disable_unprepare(phdmi->hdmitx_clk_tree.hdmi_clk_vpu);
+	#endif
 }
 
 static int hdmitx_is_hdmi_vmode(char *mode_name)
@@ -151,13 +153,14 @@ static void hdmitx_late_resume(struct early_suspend *h)
 	const struct vinfo_s *info = hdmitx_get_current_vinfo();
 	struct hdmitx_dev *phdmi = (struct hdmitx_dev *)h->param;
 
+#if 0
 	/*open vpu clk*/
 	if (phdmi->hdmitx_clk_tree.hdmi_clk_vapb != NULL)
 		clk_prepare_enable(phdmi->hdmitx_clk_tree.hdmi_clk_vapb);
 
 	if (phdmi->hdmitx_clk_tree.hdmi_clk_vpu != NULL)
 		clk_prepare_enable(phdmi->hdmitx_clk_tree.hdmi_clk_vpu);
-
+#endif
 	if (info && (hdmitx_is_hdmi_vmode(info->name) == 1))
 		phdmi->HWOp.CntlMisc(&hdmitx_device, MISC_HPLL_FAKE, 0);
 
@@ -3682,10 +3685,11 @@ static int amhdmitx_get_dt_info(struct platform_device *pdev)
  */
 static void amhdmitx_clktree_probe(struct device *hdmitx_dev)
 {
-	struct clk *hdmi_clk_vapb, *hdmi_clk_vpu;
+	/* struct clk *hdmi_clk_vapb, *hdmi_clk_vpu; */
 	struct clk *hdcp22_tx_skp, *hdcp22_tx_esm;
 	struct clk *venci_top_gate, *venci_0_gate, *venci_1_gate;
 
+	#if 0
 	hdmi_clk_vapb = devm_clk_get(hdmitx_dev, "hdmi_vapb_clk");
 	if (IS_ERR(hdmi_clk_vapb))
 		pr_warn(SYS "vapb_clk failed to probe\n");
@@ -3693,7 +3697,6 @@ static void amhdmitx_clktree_probe(struct device *hdmitx_dev)
 		hdmitx_device.hdmitx_clk_tree.hdmi_clk_vapb = hdmi_clk_vapb;
 		clk_prepare_enable(hdmitx_device.hdmitx_clk_tree.hdmi_clk_vapb);
 	}
-
 	hdmi_clk_vpu = devm_clk_get(hdmitx_dev, "hdmi_vpu_clk");
 	if (IS_ERR(hdmi_clk_vpu))
 		pr_warn(SYS "vpu_clk failed to probe\n");
@@ -3701,7 +3704,7 @@ static void amhdmitx_clktree_probe(struct device *hdmitx_dev)
 		hdmitx_device.hdmitx_clk_tree.hdmi_clk_vpu = hdmi_clk_vpu;
 		clk_prepare_enable(hdmitx_device.hdmitx_clk_tree.hdmi_clk_vpu);
 	}
-
+	#endif
 	hdcp22_tx_skp = devm_clk_get(hdmitx_dev, "hdcp22_tx_skp");
 	if (IS_ERR(hdcp22_tx_skp))
 		pr_warn(SYS "hdcp22_tx_skp failed to probe\n");
