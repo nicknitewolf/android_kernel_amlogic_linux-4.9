@@ -126,6 +126,7 @@ static void hdmitx_early_suspend(struct early_suspend *h)
 	phdmi->output_blank_flag = 0;
 	phdmi->HWOp.CntlDDC(phdmi, DDC_HDCP_MUX_INIT, 1);
 	phdmi->HWOp.CntlDDC(phdmi, DDC_HDCP_OP, HDCP14_OFF);
+	hdmitx_edid_clear(phdmi);
 	extcon_set_state_sync(hdmitx_extcon_power, EXTCON_DISP_HDMI, 0);
 	phdmi->HWOp.CntlConfig(&hdmitx_device, CONF_CLR_AVI_PACKET, 0);
 	phdmi->HWOp.CntlConfig(&hdmitx_device, CONF_CLR_VSDB_PACKET, 0);
