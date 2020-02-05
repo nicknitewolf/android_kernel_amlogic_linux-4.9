@@ -1746,7 +1746,12 @@ static void cec_rx_process(void)
 	case CEC_OC_SET_STREAM_PATH:
 		cec_set_stream_path(msg);
 		/* wake up if in early suspend */
-		if (cec_dev->cec_suspend != CEC_POWER_ON)
+		dest_phy_addr = (unsigned int)(msg[2] << 8 | msg[3]);
+		CEC_ERR("phyaddr:0x%x, 0x%x\n",
+			    cec_dev->phy_addr, dest_phy_addr);
+		if ((dest_phy_addr != 0xffff) &&
+			(dest_phy_addr == cec_dev->phy_addr) &&
+			(cec_dev->cec_suspend != CEC_POWER_ON))
 			cec_key_report(0);
 		break;
 
@@ -2534,14 +2539,35 @@ void cec_dump_info(void)
 	CEC_ERR("addr_enable:0x%x\n", cec_dev->cec_info.addr_enable);
 }
 
+unsigned int cec_get_cur_phy_addr(void)
+{
+		struct hdmitx_dev *tx_dev;
+		unsigned int a, b, c, d;
+		unsigned int tmp;
+
+		tx_dev = cec_dev->tx_dev;
+		if (!tx_dev || cec_dev->dev_type == CEC_TV_ADDR)
+			tmp = 0;
+		else {
+			/*hpd attach and wait read edid*/
+			a = tx_dev->hdmi_info.vsdb_phy_addr.a;
+			b = tx_dev->hdmi_info.vsdb_phy_addr.b;
+			c = tx_dev->hdmi_info.vsdb_phy_addr.c;
+			d = tx_dev->hdmi_info.vsdb_phy_addr.d;
+			tmp = ((a << 12) | (b << 8) | (c << 4) | (d));
+		}
+
+		return tmp;
+}
+
 static long hdmitx_cec_ioctl(struct file *f,
 			     unsigned int cmd, unsigned long arg)
 {
 	void __user *argp = (void __user *)arg;
 	unsigned int tmp;
 	struct hdmi_port_info *port;
-	unsigned int a, b, c, d, i = 0;
-	struct hdmitx_dev *tx_dev;
+	unsigned int a, i = 0;
+	/*struct hdmitx_dev *tx_dev;*/
 	/*unsigned int tx_hpd;*/
 
 	mutex_lock(&cec_dev->cec_ioctl_mutex);
@@ -2549,26 +2575,20 @@ static long hdmitx_cec_ioctl(struct file *f,
 	case CEC_IOC_GET_PHYSICAL_ADDR:
 		check_physical_addr_valid(20);
 		/* physical address for TV or repeator */
-		tx_dev = cec_dev->tx_dev;
-		if (!tx_dev || cec_dev->dev_type == CEC_TV_ADDR) {
-			tmp = 0;
-		} else if (tx_dev->hdmi_info.vsdb_phy_addr.valid == 1) {
-			/*hpd attach and wait read edid*/
-			a = tx_dev->hdmi_info.vsdb_phy_addr.a;
-			b = tx_dev->hdmi_info.vsdb_phy_addr.b;
-			c = tx_dev->hdmi_info.vsdb_phy_addr.c;
-			d = tx_dev->hdmi_info.vsdb_phy_addr.d;
-			tmp = ((a << 12) | (b << 8) | (c << 4) | (d));
-		} else
-			tmp = 0;
+		tmp = cec_get_cur_phy_addr();
+		if ((cec_dev->dev_type != CEC_TV_ADDR) && (tmp != 0) &&
+			tmp != 0xffff)
+			cec_dev->phy_addr = tmp;
 
 		if (!phy_addr_test) {
-			cec_dev->phy_addr = tmp;
-			cec_phyaddr_config(tmp, 1);
+			cec_phyaddr_config(cec_dev->phy_addr, 1);
+			CEC_INFO("type %d, save phy_addr:0x%x\n",
+					 (unsigned int)cec_dev->dev_type,
+					 cec_dev->phy_addr);
 		} else
 			tmp = cec_dev->phy_addr;
 
-		if (copy_to_user(argp, &tmp, _IOC_SIZE(cmd))) {
+		if (copy_to_user(argp, &cec_dev->phy_addr, _IOC_SIZE(cmd))) {
 			mutex_unlock(&cec_dev->cec_ioctl_mutex);
 			return -EINVAL;
 		}
@@ -2799,7 +2819,23 @@ static const struct file_operations hdmitx_cec_fops = {
 #ifdef CONFIG_HAS_EARLYSUSPEND
 static void aocec_early_suspend(struct early_suspend *h)
 {
+	/*unsigned int tempaddr;*/
+
 	cec_dev->cec_suspend = CEC_EARLY_SUSPEND;
+	#if 0
+	tempaddr = cec_get_cur_phy_addr();
+	if ((cec_dev->dev_type != CEC_TV_ADDR) && (tempaddr != 0) &&
+		tempaddr != 0xffff)
+		cec_dev->phy_addr = tempaddr;
+	CEC_ERR("%s sts:%d type:0x%x, phyaddr:0x%x (0x%x)\n", __func__,
+		    cec_dev->cec_suspend, (unsigned int)cec_dev->dev_type,
+		    cec_dev->phy_addr, tempaddr);
+	if ((cec_dev->dev_type != CEC_TV_ADDR) && (cec_dev->phy_addr == 0)) {
+		CEC_ERR("err phyaddr 0\n");
+		cec_dev->phy_addr = 0x1000;
+	}
+	cec_phyaddr_config(cec_dev->phy_addr, 1);
+	#endif
 	CEC_INFO("%s, suspend:%d\n", __func__, cec_dev->cec_suspend);
 }
 
@@ -3231,8 +3267,23 @@ static void aml_cec_pm_complete(struct device *dev)
 static int aml_cec_suspend_noirq(struct device *dev)
 {
 	int ret = 0;
+	/*unsigned int tempaddr;*/
 
 	CEC_INFO("cec suspend noirq\n");
+	#if 0
+	tempaddr = cec_get_cur_phy_addr();
+	if (cec_dev->dev_type != CEC_TV_ADDR && (tempaddr != 0) &&
+		tempaddr != 0xffff)
+		cec_dev->phy_addr = tempaddr;
+	CEC_ERR("%s type:0x%x phyaddr:0x%x(0x%x)\n", __func__,
+			(unsigned int)cec_dev->dev_type,
+		     cec_dev->phy_addr, tempaddr);
+	if ((cec_dev->dev_type != CEC_TV_ADDR) && (cec_dev->phy_addr == 0)) {
+		CEC_ERR("err phyaddr 0\n");
+		cec_dev->phy_addr = 0x1000;
+	}
+	cec_phyaddr_config(cec_dev->phy_addr, 1);
+	#endif
 	cec_clear_all_logical_addr(ee_cec);
 
 	if (!IS_ERR(cec_dev->dbg_dev->pins->sleep_state))
