@@ -1,14 +1,70 @@
+dtb-y += atom.dtb
+dtb-y += axg_a113d_skt.dtb
+dtb-y += axg_a113x_skt.dtb
+dtb-y += axg_pxp.dtb
+dtb-y += axg_s400.dtb
+dtb-y += axg_s400_v03.dtb
+dtb-y += axg_s400emmc.dtb
+dtb-y += axg_s400emmc_512m.dtb
+dtb-y += axg_s400emmc_v03.dtb
+dtb-y += axg_s420.dtb
+dtb-y += axg_s420_128m.dtb
+dtb-y += axg_s420_v03.dtb
+#dtb-y += common_overlay_dt.dtb
+dtb-y += g12a_pxp.dtb
+dtb-y += g12a_s905d2_skt.dtb
+dtb-y += g12a_s905d2_skt_buildroot.dtb
+dtb-y += g12a_s905d2_u200.dtb
+dtb-y += g12a_s905d2_u200_1g.dtb
+dtb-y += g12a_s905d2_u200_buildroot.dtb
+dtb-y += g12a_s905d2_u200_drm_buildroot.dtb
+dtb-y += g12a_s905d2_u220.dtb
+dtb-y += g12a_s905x2_u211.dtb
+dtb-y += g12a_s905x2_u211_1g.dtb
+dtb-y += g12a_s905x2_u211_512m.dtb
+dtb-y += g12a_s905x2_u211_buildroot.dtb
+dtb-y += g12a_s905x2_u212.dtb
+dtb-y += g12a_s905x2_u212_1g.dtb
+dtb-y += g12a_s905x2_u212_buildroot.dtb
+dtb-y += g12a_s905y2_u221.dtb
+dtb-y += g12b_a311d_skt.dtb
+dtb-y += g12b_a311d_w400.dtb
+dtb-y += g12b_a311d_w400_buildroot.dtb
+dtb-y += g12b_pxp.dtb
+dtb-y += gxl_p212_1g.dtb
+dtb-y += gxl_p212_1g_buildroot.dtb
+dtb-y += gxl_p212_1g_hd.dtb
+dtb-y += gxl_p212_2g.dtb
+dtb-y += gxl_p212_2g_buildroot.dtb
+dtb-y += gxl_p230_2g.dtb
+dtb-y += gxl_p230_2g_buildroot.dtb
+dtb-y += gxl_p231_1g.dtb
+dtb-y += gxl_p231_2g.dtb
+dtb-y += gxl_p231_2g_buildroot.dtb
+dtb-y += gxl_p241_1g.dtb
+dtb-y += gxl_p241_1g_buildroot.dtb
+dtb-y += gxl_p241_v2-1g.dtb
+dtb-y += gxl_p241_v2_1g_buildroot.dtb
+dtb-y += gxl_p400_2g.dtb
+dtb-y += gxl_p401_2g.dtb
+dtb-y += gxl_sei210_1g.dtb
+dtb-y += gxl_sei210_2g.dtb
+dtb-y += gxl_skt.dtb
+dtb-y += gxm_q200_2g.dtb
+dtb-y += gxm_q200_2g_buildroot.dtb
+dtb-y += gxm_q201_1g.dtb
+dtb-y += gxm_q201_2g.dtb
+dtb-y += gxm_skt.dtb
+dtb-y += txl_t950_p341.dtb
+dtb-y += txl_t960_p346.dtb
+dtb-y += txl_t962_p320.dtb
+dtb-y += txl_t962_p321.dtb
+dtb-y += txlx_t962e_r321.dtb
+dtb-y += txlx_t962e_r321_buildroot.dtb
+dtb-y += txlx_t962x_r311_1g.dtb
+dtb-y += txlx_t962x_r311_2g.dtb
+dtb-y += txlx_t962x_r311_720p.dtb
 
-targets += dtbs
-
-DTB_NAMES := $(subst $\",,$(CONFIG_BUILD_ARM64_APPENDED_DTB_IMAGE_NAMES))
-ifneq ($(DTB_NAMES),)
-DTB_LIST := $(addsuffix .dtb,$(DTB_NAMES))
-else
-DTB_LIST := $(dtb-y)
-endif
-targets += $(DTB_LIST)
-
-dtbs: $(addprefix $(obj)/, $(DTB_LIST))
-
-clean-files := *.dtb
+always		:= $(dtb-y) $(dtbo-y)
+subdir-y	:= $(dtb-dirs)
+clean-files	:= *.dtb *.dtbo
