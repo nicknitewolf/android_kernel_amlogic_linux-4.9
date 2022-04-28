@@ -1,3 +1,4 @@
+dtb-y += android_p_overlay_dt.dtb
 dtb-y += atom.dtb
 dtb-y += axg_a113d_skt.dtb
 dtb-y += axg_a113x_skt.dtb
