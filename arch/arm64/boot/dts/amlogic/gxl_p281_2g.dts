@@ -659,7 +659,7 @@
 		clock-names = "usb_general",
 			"usb1",
 			"usb1_to_ddr";
-		};
+	};
 
 	meson-amvideom {
 		compatible = "amlogic, amvideom";
